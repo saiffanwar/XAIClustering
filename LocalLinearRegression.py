@@ -6,11 +6,12 @@ from sklearn.metrics import mean_squared_error
 import kmedoids
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
 
 
 # with open('DateData.pck', 'rb') as file:
 #     data = pck.load(file)
-    
+
 # x, y = data[0][:,6], data[1]
 # N = len(x)
 
@@ -29,19 +30,19 @@ class LocalLinearRegression():
         w = []
         MSE = []
 
-        for i in range(self.N):
+        for i in tqdm(range(self.N)):
             xx = self.x[i]
-            check = [distanceFunction(self.x[j],xx)<0.25 for j in range(self.N)]   
+            check = [distanceFunction(self.x[j],xx)<0.25 for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
             X = np.array([localxdata, np.ones(len(localxdata))]).T
             wlocal = np.linalg.lstsq(X, localydata, rcond=1)[0]
-            
+
             w1.append(wlocal[0])
             w2.append(wlocal[1])
             w.append(wlocal)
             MSE.append(mean_squared_error(localydata, np.dot(X, wlocal)))
-            
+
         if plotModelParameters:
             x = [x[i] for i in range(len(x))]
             fig, axes = plt.subplots(1,3,figsize=(20,7))
@@ -59,40 +60,40 @@ class LocalLinearRegression():
             axes[2].scatter(x, w2, s=5)
             axes[2].set_xlabel('x', fontsize=fontsize)
             axes[2].set_ylabel('w2', fontsize=fontsize)
-                        
+
         return w1, w2, w, MSE
 
 
     def computeDistanceMatrix(self, w1, w2, w, MSE, distanceFunction):
 
         D = np.zeros((self.N,self.N))
-        
+
         # Raw value Distances:
         xDs = np.array([distanceFunction(self.x[i], self.x[j]) for i in range(self.N) for j in range(self.N)])
-        
-        wDs = np.array([np.linalg.norm(w[i]-w[j]) for i in range(self.N) for j in range(self.N)]) 
-        
+
+        wDs = np.array([np.linalg.norm(w[i]-w[j]) for i in range(self.N) for j in range(self.N)])
+
         mseDs = np.array([MSE[i]-MSE[j] for i in range(self.N) for j in range(self.N)])
-        
+
         # Normalise Distances:
         normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
         maxX, minX = np.max(xDs), np.min(xDs)
         xDs_norm = np.array(list(map(lambda x: normalise(maxX, minX, x), xDs))).reshape(self.N, self.N)
-        
+
         maxWds, minWds = np.max(wDs), np.min(wDs)
         wDs_norm = np.array(list(map(lambda x: normalise(maxWds, minWds, x), wDs))).reshape(self.N, self.N)
-        
+
         maxMses, minMses = np.max(mseDs), np.min(mseDs)
         mseDs_norm = np.array(list(map(lambda x: normalise(maxMses, minMses, x), mseDs))).reshape(self.N, self.N)
 
-        for i in range(self.N):
+        for i in tqdm(range(self.N)):
             for j in range(self.N):
                 # print(np.linalg.norm(w[i]-w[j]), MSE[i]-MSE[j], self.x[i]-self.x[j])
                 distance = wDs_norm[i,j] + mseDs_norm[i,j] + 4*xDs_norm[i,j]
                 D[i,j] = distance
-        
+
         return D, xDs_norm
-                
+
 
     def KMedoidClustering(self, K, D):
         km = kmedoids.KMedoids(n_clusters=K, init='random', random_state=0, method='pam')
@@ -106,13 +107,13 @@ class LocalLinearRegression():
                 if c.labels_[i] == k:
                     clustersx.append(self.x[i])
                     clustersy.append(self.y[i])
-            
+
             clusteredData.append([clustersx, clustersy])
         return clusteredData
 
     def LinearModelsToClusters(self, clusteredData):
         plotFinalLinearModels = False
-        
+
         def LR(x, y):
             x = np.array(x).reshape(-1,1)
             y = np.array(y)
