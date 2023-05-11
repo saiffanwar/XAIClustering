@@ -2,6 +2,7 @@ import numpy as np
 import math
 import plotly
 import plotly.graph_objs as go
+import plotly.express as px
 import matplotlib.pyplot as plt
 import pickle as pck
 from sklearn.linear_model import LinearRegression
@@ -55,12 +56,9 @@ class CyclicRegression():
 
     def LinReg(self, featureData, ydata):
         # Linear Regression using sklearn
-        if len(featureData) < 1:
-            transformed_data = np.array([feature[i] for i in featureData]).T
-        else:
-            transformed_data = np.array(featureData[0]).reshape(-1,1)
+        transformed_data = np.array(featureData[0]).reshape(-1,1)
 
-        xtrain, xtest, ytrain, ytest = transformed_data[:int(0.8*len(featureData[0]))], transformed_data[int(0.2*len(featureData[0])):], ydata[:int(0.8*len(featureData[0]))], ydata[int(0.2*len(featureData[0])):]
+#        xtrain, xtest, ytrain, ytest = transformed_data[:int(0.8*len(featureData[0]))], transformed_data[int(0.2*len(featureData[0])):], ydata[:int(0.8*len(featureData[0]))], ydata[int(0.2*len(featureData[0])):]
 
 
         LR = LinearRegression()
@@ -90,36 +88,33 @@ class CyclicRegression():
         return preds, m, c
 
 
-    def plotCircularData(self, xdata, ydata, ys):
-        data=[]
-        trace1 = go.Scatter3d(
+    def plotCircularData(self, xdata, ydata, ys, fig, color):
+        if not fig:
+            layout = go.Layout(
+                    margin={'l': 0, 'r': 0, 'b': 0, 't': 0}
+                    )
+            fig = go.Figure(data=[], layout=layout)
+
+        sin_time = np.sin(np.array(xdata)*2*np.pi/96)
+        cos_time = np.cos(np.array(xdata)*2*np.pi/96)
+
+        fig.add_trace(go.Scatter3d(
             x=sin_time,
             y=cos_time,
             z=ydata,
             mode='markers',
             marker={
-                'size': 2,
+                'size': 5,
                 'opacity': 0.8,
-                'color': 'black'
-            }
-        )
+                'color': color}
+        ))
         lindata = np.array(ys).flatten()
-        print(lindata)
-        trace2 = go.Scatter3d(
+        fig.add_trace(go.Scatter3d(
             x=sin_time,
             y=cos_time,
             z=lindata,
             mode='markers',
-            marker={'size': 12, 'color': 'red'}
-        )
+            marker={'size': 12, 'color': color}
+        ))
 
-        data.append(trace1)
-        data.append(trace2)
-        #Configure the layout.
-        layout = go.Layout(
-        margin={'l': 0, 'r': 0, 'b': 0, 't': 0}
-        )
-
-        plot_figure = go.Figure(data=data, layout=layout)
-        plot_figure.show()
-
+        return fig

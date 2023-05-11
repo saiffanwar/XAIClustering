@@ -6,9 +6,17 @@ import random
 import matplotlib.pyplot as plt
 import plotly
 import plotly.graph_objs as go
+from cyclicRegression import CyclicRegression
+
+#   PROFILER BLOCK
+#    profiler = cProfile.Profile()
+#    profiler.enable()
+#    profiler.disable()
+#    stats =  pstats.Stats(profiler).sort_stats('cumtime')
+#    stats.print_stats()
 
 
-NumSamples = 2000
+NumSamples = 1000
 dataset = 'webtris'
 def fetchData(dataset='webtris'):
 
@@ -43,6 +51,9 @@ def fetchData(dataset='webtris'):
 
 def plotMedoids(clusteredData, linearParams, preds):
     print('Starting Plotting')
+    CR = CyclicRegression()
+    plotly_Fig = None
+
     fig, axes = plt.subplots(1,1,figsize=(10,10))
     axes = fig.axes
     colours = ['red', 'blue', 'green', 'orange', 'purple', 'black', 'pink', 'brown', 'grey', 'cyan', 'magenta']
@@ -53,8 +64,9 @@ def plotMedoids(clusteredData, linearParams, preds):
         axes[0].scatter(clusteredData[i][0], clusteredData[i][1], s=5, marker='o', label='data', c=colour)
         axes[0].scatter(np.array(clusteredData[i][0]).flatten(), preds[i], c=colour, linewidth=5)
 
+        plotly_Fig = CR.plotCircularData(clusteredData[i][0], clusteredData[i][1], preds[i], plotly_Fig, colour)
     fig.savefig(dataset+'data'+str(len(clusteredData))+'Medoids.pdf')
-
+    plotly_Fig.show()
 
 def main():
     print('Fethcing Data')
@@ -67,22 +79,16 @@ def main():
 
     print('Calculating Distances')
     # Use local models to compute distance matrix for all points (slow)
-    profiler = cProfile.Profile()
-    profiler.enable()
     D, xDs= LLR.computeDistanceMatrix(w1, w2, w, MSE, distFunction)
-    profiler.disable()
-    stats =  pstats.Stats(profiler).sort_stats('cumtime')
-    stats.print_stats()
     print('Doing K-medoids-clustering')
     # Define number of medoids and perform K medoid clustering.
-    K = 4
+    K = 3
     clusteredData = LLR.KMedoidClustering(K, D)
 
     linearParams, preds = LLR.LinearModelsToClusters(clusteredData)
 
 #   Plot medoids and linear parameters.
     plotMedoids(clusteredData, linearParams, preds)
-
 
 if __name__ == "__main__":
     main()
