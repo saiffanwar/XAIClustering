@@ -7,13 +7,9 @@ import kmedoids
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
+from cyclicRegression import CyclicRegression
 
-
-# with open('DateData.pck', 'rb') as file:
-#     data = pck.load(file)
-
-# x, y = data[0][:,6], data[1]
-# N = len(x)
+CR = CyclicRegression()
 
 class LocalLinearRegression():
 
@@ -35,13 +31,15 @@ class LocalLinearRegression():
             check = [distanceFunction(self.x[j],xx)<0.25 for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
-            X = np.array([localxdata, np.ones(len(localxdata))]).T
-            wlocal = np.linalg.lstsq(X, localydata, rcond=1)[0]
+#            X = np.array([localxdata, np.ones(len(localxdata))]).T
+#            wlocal = np.linalg.lstsq(X, localydata, rcond=1)[0]
+            preds, m, c = CR.cyclicRegression(localxdata, localydata)
 
-            w1.append(wlocal[0])
-            w2.append(wlocal[1])
-            w.append(wlocal)
-            MSE.append(mean_squared_error(localydata, np.dot(X, wlocal)))
+
+            w1.append(m)
+            w2.append(c)
+            w.append([m, c])
+            MSE.append(mean_squared_error(localydata, preds))
 
         if plotModelParameters:
             x = [x[i] for i in range(len(x))]
@@ -70,10 +68,13 @@ class LocalLinearRegression():
 
         # Raw value Distances:
         xDs = np.array([distanceFunction(self.x[i], self.x[j]) for i in range(self.N) for j in range(self.N)])
-
-        wDs = np.array([np.linalg.norm(w[i]-w[j]) for i in range(self.N) for j in range(self.N)])
+#        xDs = np.array(map(map(distanceFunction(xi, xj), self.x), self.x))
+        euclidean = lambda l1, l2: sum((p-q)**2 for p, q in zip(l1, l2)) ** .5
+        wDs = np.array([euclidean(w[i], w[j]) for i in range(self.N) for j in range(self.N)])
+#        wDs = np.array(map(map(euclidean(wi, wj), w), w))
 
         mseDs = np.array([MSE[i]-MSE[j] for i in range(self.N) for j in range(self.N)])
+#        mseDs = np.array(map(map(lambda x1, x2: x1-x2, MSE), MSE))
 
         # Normalise Distances:
         normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
@@ -89,7 +90,7 @@ class LocalLinearRegression():
         for i in tqdm(range(self.N)):
             for j in range(self.N):
                 # print(np.linalg.norm(w[i]-w[j]), MSE[i]-MSE[j], self.x[i]-self.x[j])
-                distance = wDs_norm[i,j] + mseDs_norm[i,j] + 4*xDs_norm[i,j]
+                distance = wDs_norm[i,j] + mseDs_norm[i,j] + xDs_norm[i,j]
                 D[i,j] = distance
 
         return D, xDs_norm
@@ -123,10 +124,13 @@ class LocalLinearRegression():
         if plotFinalLinearModels:
             fig, axes = plt.subplots(1,4,figsize=(20,5))
         linearParams = []
+        clusterPreds = []
         for i in range(len(clusteredData)):
-            w, b = LR(clusteredData[i][0], clusteredData[i][1])
+            preds, w, b = CR.cyclicRegression(clusteredData[i][0], clusteredData[i][1])
             linearParams.append([w,b])
+            clusterPreds.append(preds)
             if plotFinalLinearModels:
                 axes[i].scatter(clusteredData[i][0], clusteredData[i][1], s=5, marker='o', label='data')
-                axes[i].plot(np.array(clusteredData[i][0]).flatten(), np.array([w*j+b for j in clusteredData[i][0]]).flatten())
-        return linearParams
+                axes[i].plot(np.array(clusteredData[i][0]).flatten(), preds)
+        return linearParams, clusterPreds
+
