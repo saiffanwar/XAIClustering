@@ -70,6 +70,12 @@ parser.add_argument(
     default=[1, 16, 32, 64, 32, 128],
     help="model strcture controller, T: Temporal Layer, S: Spatio Layer, N: Norm Layer",
 )
+parser.add_argument(
+    "--pretrained",
+    type=bool,
+    default=True,
+    help="Whether to use pretrained model or train a new model.",
+)
 args = parser.parse_args()
 
 device = (
@@ -137,7 +143,6 @@ val_iter = torch.utils.data.DataLoader(val_data, batch_size)
 test_data = torch.utils.data.TensorDataset(x_test, y_test)
 test_iter = torch.utils.data.DataLoader(test_data, batch_size)
 
-
 loss = nn.MSELoss()
 G = G.to(device)
 model = STGCN_WAVE(
@@ -147,40 +152,46 @@ optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
 
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.7)
 
-min_val_loss = np.inf
-print('Starting Training ')
-for epoch in range(1, epochs + 1):
-    l_sum, n = 0.0, 0
-    model.train()
-    for x, y in train_iter:
-        y_pred = model(x).view(len(x), -1)
-        l = loss(y_pred, y)
-        optimizer.zero_grad()
-        l.backward()
-        optimizer.step()
-        l_sum += l.item() * y.shape[0]
-        n += y.shape[0]
-    scheduler.step()
-    val_loss = evaluate_model(model, loss, val_iter)
-    if val_loss < min_val_loss:
-        min_val_loss = val_loss
-        torch.save(model.state_dict(), save_path)
-    print(
-        "epoch",
-        epoch,
-        ", train loss:",
-        l_sum / n,
-        ", validation loss:",
-        val_loss,
-    )
+if not args.pretrained:
+
+    min_val_loss = np.inf
+    print('Starting Training ')
+    for epoch in range(1, epochs + 1):
+        l_sum, n = 0.0, 0
+        model.train()
+        for x, y in train_iter:
+            y_pred = model(x).view(len(x), -1)
+            l = loss(y_pred, y)
+            optimizer.zero_grad()
+            l.backward()
+            optimizer.step()
+            l_sum += l.item() * y.shape[0]
+            n += y.shape[0]
+        scheduler.step()
+        val_loss = evaluate_model(model, loss, val_iter)
+        if val_loss < min_val_loss:
+            min_val_loss = val_loss
+            torch.save(model.state_dict(), save_path)
+        print(
+            "epoch",
+            epoch,
+            ", train loss:",
+            l_sum / n,
+            ", validation loss:",
+            val_loss,
+        )
+    best_model = STGCN_WAVE(
+        blocks, n_his, n_route, G, drop_prob, num_layers, device, args.control_str
+    ).to(device)
+    best_model.load_state_dict(torch.load(save_path))
+    l = evaluate_model(best_model, loss, test_iter)
+    MAE, MAPE, RMSE = evaluate_metric(best_model, test_iter, scaler)
+else:
+
+    model.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
+    print('Loaded Model')
+    l = evaluate_model(model, loss, test_iter)
+    MAE, MAPE, RMSE = evaluate_metric(model, test_iter, scaler)
 
 
-best_model = STGCN_WAVE(
-    blocks, n_his, n_route, G, drop_prob, num_layers, device, args.control_str
-).to(device)
-best_model.load_state_dict(torch.load(save_path))
-
-
-l = evaluate_model(best_model, loss, test_iter)
-MAE, MAPE, RMSE = evaluate_metric(best_model, test_iter, scaler)
 print("test loss:", l, "\nMAE:", MAE, ", MAPE:", MAPE, ", RMSE:", RMSE)

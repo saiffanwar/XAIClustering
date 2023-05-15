@@ -16,7 +16,7 @@ from cyclicRegression import CyclicRegression
 #    stats.print_stats()
 
 
-NumSamples = 1000
+NumSamples = 2000
 dataset = 'webtris'
 def fetchData(dataset='webtris'):
 
@@ -31,14 +31,14 @@ def fetchData(dataset='webtris'):
 
     # WebTRIS DATA:
     if dataset == 'webtris':
-        with open('WebtrisData.pck', 'rb') as file:
+        with open('data/WebtrisData.pck', 'rb') as file:
             data = pck.load(file)[0]
         xdata, ydata = data['Time Interval'].values[:NumSamples], data['Total Volume'].values[:NumSamples]
         distFunction = cyclic
 
     # MIDAS Data
     elif dataset == 'midas':
-        with open('allMIDASdata.pck', 'rb') as file:
+        with open('dataallMIDASdata.pck', 'rb') as file:
              data = pck.load(file)
         xdata,ydata = data[0], data[1]
         featureNum = 8
@@ -82,7 +82,7 @@ def main():
     D, xDs= LLR.computeDistanceMatrix(w1, w2, w, MSE, distFunction)
     print('Doing K-medoids-clustering')
     # Define number of medoids and perform K medoid clustering.
-    K = 3
+    K = 7
     clusteredData = LLR.KMedoidClustering(K, D)
 
     linearParams, preds = LLR.LinearModelsToClusters(clusteredData)
