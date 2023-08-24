@@ -1,4 +1,5 @@
 import numpy as np
+from pprint import pprint
 import math
 import plotly
 import plotly.graph_objs as go
@@ -47,11 +48,16 @@ class CyclicRegression():
     def shiftCluster(self, xdata, firstEdge, secondEdge, boundary=96):
         print(firstEdge, secondEdge)
         shiftedX = []
+        def rotate(l, n):
+            return l[n:] + l[:n]
+
+        rotatedXdata = rotate(xdata, boundary-secondEdge)
         for x in xdata:
             if x>=secondEdge:
                 shiftedX.append(x-secondEdge)
             else:
                 shiftedX.append(x+(boundary-secondEdge))
+        pprint(list(zip(xdata, rotatedXdata, shiftedX)))
         return shiftedX
 
     def LinReg(self, featureData, ydata):
@@ -87,6 +93,16 @@ class CyclicRegression():
 #        fig.savefig('rotatedSamples.pdf')
         return preds, m, c
 
+    def rotateCyclicData(self, xdata, ydata):
+        for i in range(len(features)):
+            featureData = [p[i] for p in xdata]
+            if self.checkBoundary(featureData):
+                firstEdge, secondEdge = self.findClusterEdges(featureData)
+                shiftedX = self.shiftCluster(featureData, firstEdge, secondEdge)
+
+                for j, x in enumerate(xdata):
+                    x[i] = featureData[j]
+        return xdata
 
     def plotCircularData(self, xdata, ydata, ys, fig, color):
         if not fig:
