@@ -16,6 +16,9 @@ import glob
 
 class LinearClustering():
 
+    ''' This class clusters a dataset into regions of linearity. It is provided a distance matrix computed in the LocalLinearRegression class.
+    This distance matrix is based on the local linear models of each point as well as the raw distance values. '''
+
     def __init__(self, x, y, D, xDs):
         self.x = x
         self.y = y
@@ -28,33 +31,17 @@ class LinearClustering():
         self.xDs_norm = np.array(list(map(lambda x: normalise(maxX, minX, x), self.xDs))).reshape(len(self.x), len(self.x))
 
 
-    def recluster(self, K, clustered_data, medoids, clustering_cost, linear_params):
-        random_cluster = random.choice(np.arange(0,K,1))
-        prev_medoid = medoids[random_cluster]
-        clustered_data[random_cluster].remove(prev_medoid)
-        new_medoid = random.choice(clustered_data[random_cluster])
-        new_medoids = deepcopy(medoids)
-        new_medoids[random_cluster] = new_medoid
-        clustered_data[random_cluster].append(prev_medoid)
-
-        # Reset clustered data for new clustsering.
-        new_clustered_data = [[] for i in range(K)]
-        for index,i in enumerate(self.D):
-            closest = np.argmin([i[j] for j in new_medoids])
-            new_clustered_data[closest].append(index)
-
-        _,new_linear_params = self.calc_cluster_models(self.x, self.y, new_clustered_data)
-        new_clustering_cost = self.calculate_clustering_cost(new_clustered_data, new_linear_params)
-        if new_clustering_cost < clustering_cost:
-            clustering_cost = new_clustering_cost
-            linear_params = new_linear_params
-            clustered_data = new_clustered_data
-            medoids = new_medoids
-            fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/{K}/AdaptedClustering_{iter}.png')
-        return clustering_cost, linear_params, clustered_data, medoids
-
     def adapted_clustering(self, K, medoids=None, clustered_data=None, linear_params=None, clustering_cost=None):
+
+        '''
+        This is the main clustering algorithm. It will start with some arbitrary number of K to generate clusters.
+        It takes a K-medoids based approach to generate clusters using the provided distance matrix. It then checks if there
+        are any clusters contained within other clusters. If so, it merges the child cluster into the parent cluster.
+        Then it checks if there are any neighbouring clusters which have a similar linearity and merges those that do.
+        Then based on the new number of clusters after merging, it will recluster the data to find the optimal clustering.
+        This is done recursively until there are no new merges therefore an optimal value of K is found.
+        '''
+
         print(f'-------------- Clustering for K = {K} --------------')
         # Clear folder for figures to show evolution of clustering.
         if os.path.isdir(f'Figures/Clustering/{K}'):
@@ -124,7 +111,50 @@ class LinearClustering():
             fig.savefig(f'Figures/Clustering/OptimisedClusters/final_{K}.png')
             return clustered_data, medoids, linear_params, clustering_cost
 
+
+    def recluster(self, K, clustered_data, medoids, clustering_cost, linear_params):
+
+        '''
+        This is a utility function used in the adapted clustering algorithm. It will randomly select a cluster
+        and then randomly select a new medoid for the cluster and then assigning all points the appropriate cluster
+        based on the new medoid. Linear Regression models are fit to all of the new clusters. A cost is calculated
+        based on the combined error of all the new LR models. If this cost is lower than the previous cost, the new
+        clustering is favoured. This function is called repeatedly for a specified number of iterations.
+        '''
+
+        random_cluster = random.choice(np.arange(0,K,1))
+        prev_medoid = medoids[random_cluster]
+        clustered_data[random_cluster].remove(prev_medoid)
+        new_medoid = random.choice(clustered_data[random_cluster])
+        new_medoids = deepcopy(medoids)
+        new_medoids[random_cluster] = new_medoid
+        clustered_data[random_cluster].append(prev_medoid)
+
+        # Reset clustered data for new clustsering.
+        new_clustered_data = [[] for i in range(K)]
+        for index,i in enumerate(self.D):
+            closest = np.argmin([i[j] for j in new_medoids])
+            new_clustered_data[closest].append(index)
+
+        _,new_linear_params = self.calc_cluster_models(self.x, self.y, new_clustered_data)
+        new_clustering_cost = self.calculate_clustering_cost(new_clustered_data, new_linear_params)
+        if new_clustering_cost < clustering_cost:
+            clustering_cost = new_clustering_cost
+            linear_params = new_linear_params
+            clustered_data = new_clustered_data
+            medoids = new_medoids
+            fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
+            fig.savefig(f'Figures/Clustering/{K}/AdaptedClustering_{iter}.png')
+        return clustering_cost, linear_params, clustered_data, medoids
+
+
     def check_cluster_similarity(self, clustered_data, linear_params):
+
+        '''
+        Utility function which checks the similarity between linear models of neighbouring clusters.
+        If the gradient of neighbouring models is similar (based on some defined threshold), the clusters
+        are merged.
+        '''
 
         merges = []
 
@@ -134,7 +164,8 @@ class LinearClustering():
                 next_cluster_params = linear_params[cluster_num+1]
 #                similarity = np.linalg.norm(np.array(cluster_params) - np.array(next_cluster_params))
                 similarity = abs(cluster_params[0] - next_cluster_params[0])
-                if similarity < 0.06:
+                # The similarity threshold is defined here. Increasing the thresold will result in more clusters being merged.
+                if similarity < 0.075:
                     print(f'Similarity between {cluster_num} and {cluster_num+1} is {similarity}.')
                     merges.append([cluster_num, cluster_num+1])
 
@@ -151,6 +182,11 @@ class LinearClustering():
 
 
     def order_clusters(self, clustered_data):
+
+        '''
+        Utility function which orders the clusters based on the minimum x value of each cluster.
+        '''
+
         minimums = [min(clustered_data[i]) for i in range(len(clustered_data))]
         index_sorted = sorted(range(len(minimums)), key=lambda k: minimums[k])
         ordered_clusters = [clustered_data[i] for i in index_sorted]
@@ -158,6 +194,12 @@ class LinearClustering():
         return ordered_clusters
 
     def check_cluster_overlap(self, clustered_data):
+
+        '''
+        Utility function which checks for overlap between clusters or (child) clusters entirely contained
+        within other (parent) clusters. If there is overlap, the parent cluster adopts the child cluster.
+        '''
+
         cluster_datapoints = self.cluster_indices_to_datapoints(clustered_data)
         cluster_ranges = [[min(cluster_datapoints[i][0]), max(cluster_datapoints[i][0])] for i in range(len(cluster_datapoints))]
         contained_clusters, overlapping_clusters = [], []
@@ -182,6 +224,12 @@ class LinearClustering():
 
     def create_cluster_heirarchy(self, contained_clusters):
 
+        '''
+        Utility function which creates a heirarchy of clusters based on the contained_clusters list.
+        Clusters contained within clusters that are also children of other clusters, are all merged into
+        the top level parent cluster.
+        '''
+
         all_clusters = np.unique(np.array(contained_clusters).flatten())
         cluster_children = {cluster:[] for cluster in all_clusters}
 
@@ -204,6 +252,11 @@ class LinearClustering():
         return cluster_children
 
     def adopt_clusters(self, clustered_data, contained_clusters):
+
+        '''
+        Utility function which merges clusters contained within other clusters into the parent cluster.
+        '''
+
         merges = self.create_cluster_heirarchy(contained_clusters)
         merged_clusters = {i:clustered_data[i] for i in range(len(clustered_data))}
 
@@ -217,6 +270,11 @@ class LinearClustering():
         return new_clusters
 
     def cluster_indices_to_datapoints(self, clustered_indices):
+
+        '''
+        Utility function which converts the clusters containing indices of the x values to the raw x datapoint values.
+        '''
+
         datapoints = [[[],[]] for i in range(len(clustered_indices))]
         for cluster in range(len(clustered_indices)):
             for i, point_index in enumerate(clustered_indices[cluster]):
@@ -225,6 +283,12 @@ class LinearClustering():
         return datapoints
 
     def calculate_clustering_cost(self, clustered_data, linear_params):
+
+        '''
+        Utility function which calculates the cost of a clustering based on the combined error of the linear regression models
+        for each cluster. The cost is the sum of the absolute errors of each cluster.
+        '''
+
         clustered_data = self.cluster_indices_to_datapoints(clustered_data)
         total_error = 0
         for cluster_num, cluster in enumerate(clustered_data):
@@ -240,6 +304,11 @@ class LinearClustering():
 
 
     def calc_cluster_models(self, X, Y, clustered_data, distFunction=None):
+
+        '''
+        Utility function which fits a linear regression model to each cluster and returns the linear parameters.
+        '''
+
         clustered_data = self.cluster_indices_to_datapoints(clustered_data)
         def LR(x, y):
             x = np.array(x).reshape(-1,1)
@@ -274,7 +343,6 @@ class LinearClustering():
             try:
                 cluster_range = np.arange(min(clustered_data[i][0]), max(clustered_data[i][0]), 1)
             except:
-                print(clustered_data[i])
             axes[0].plot(cluster_range, w*cluster_range+b, linewidth=5, c=colour)
 
         for index, i in enumerate(medoids):

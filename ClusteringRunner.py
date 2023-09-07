@@ -25,24 +25,24 @@ plotData(train_data, x_col='date', y_col='meantemp')
 
 
 
-def make_linear_ensemble(xdata, ydata, dist_function):
+def make_linear_ensemble(xdata, ydata):
 
     print('Performing Local Linear Regression')
     # Perform LocalLinear regression on fetched data
-    LLR = LocalLinearRegression(xdata,ydata)
-    w1, w2, w, MSE = LLR.calculateLocalModels(dist_function)
+    LLR = LocalLinearRegression(xdata,ydata, dist_function='Euclidean')
+    w1, w2, w, MSE = LLR.calculateLocalModels()
     xrange = np.linspace(min(xdata), max(xdata), 100)
     print('Calculating Distances')
 #
     distance_weights = [1,0.75,0]
 
-    D, xDs= LLR.computeDistanceMatrix(w1, w2, w, MSE, dist_function, distance_weights=distance_weights)
+    D, xDs= LLR.compute_distance_matrix(w, MSE, distance_weights=distance_weights)
     print('Doing K-medoids-clustering')
     # Define number of medoids and perform K medoid clustering.
 
     LC = LinearClustering(xdata, ydata, D, xDs)
 
-    K =40
+    K =20
 
     files = glob.glob(f'Figures/Clustering/OptimisedClusters/*')
     for f in files:
@@ -60,9 +60,8 @@ def main():
     xdata = [(j-xdata[0]).days for j in xdata]
 
     ydata = train_data['meantemp'].values
-    dist_function = euclideanDefine(xdata)
 #    dist_function = timeDiff
-    clustered_data, linear_params = make_linear_ensemble(xdata, ydata, dist_function)
+    clustered_data, linear_params = make_linear_ensemble(xdata, ydata)
 
 if __name__ == "__main__":
     main()

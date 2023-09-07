@@ -14,31 +14,39 @@ import os
 import glob
 
 class LocalLinearRegression():
-
-    def __init__(self, x,y, distFunction):
+    '''
+    This class performs local linear regression on a given dataset. It takes in the data and a distance function
+    which is used to calculate the neighbourhood of points to include in each points local linear regression.
+    The current neighbourhood is set to 5% of the maximum distance.
+    '''
+    def __init__(self, x,y, dist_function):
         self.x = x
         self.y = y
         self.N = len(x)
         self.CR = CyclicRegression()
-        if distFunction == 'Euclidean':
-            self.distFunction = self.euclideanDefine()
-        elif distFunction == 'Time':
-            self.distFunction = self.timeDiff
+        if dist_function == 'Euclidean':
+            self.dist_function = self.euclideanDefine()
+        elif dist_function == 'Time':
+            self.dist_function = self.timeDiff
 
     def euclideanDefine(self):
+        ''' Defines a eculidea distance function and normalises the distance based on the maximum value in the dataset.'''
         maxVal = max(self.x)
         euclidean = lambda x1,x2: abs(x1-x2)/maxVal
         return euclidean
 
     def timeDiff(self, x1,x2):
+        ''' A time difference function which takes in datetime objects and returns the difference in days.'''
         return abs(x1-x2).days
 
-    def pointwiseDistance(self, distanceFunction, X):
+    def pointwiseDistance(self, X):
+        ''' Calculates the distances between every point and every other point based on the defined distance function.
+        Returns a matrix of all the distances which are normalised to range between 0 and 1.'''
         xDs = []
         for x1 in X:
             x1Ds = []
             for x2 in X:
-                x1Ds.append(distanceFunction(x1,x2))
+                x1Ds.append(self.dist_function(x1,x2))
             xDs.append(x1Ds)
         self.xDs = xDs
 
@@ -48,7 +56,10 @@ class LocalLinearRegression():
         self.xDs_norm = np.array(list(map(lambda x: normalise(maxX, minX, x), self.xDs))).reshape(self.N, self.N)
 
 
-    def calculateLocalModels(self, distanceFunction):
+    def calculateLocalModels(self):
+        ''' Calculates the local linear model for each point. First calulates the neighbourhood of a point by
+        checking which points distance is less than the defined 5% neighbourhood threshold. Then performs linear regression within this neighbourhood.
+        Stores the parameters and error of each LR model.'''
         plotModelParameters = False
 
         w1 = []
@@ -57,7 +68,7 @@ class LocalLinearRegression():
         MSE = []
 
 #        Calculate distances between all points so can reuse later.
-        self.pointwiseDistance(distanceFunction, self.x)
+        self.pointwiseDistance(self.x)
 
         for i in tqdm(range(self.N)):
             check = [self.xDs_norm[i][j]<0.05 for j in range(self.N)]
@@ -96,8 +107,10 @@ class LocalLinearRegression():
         return w1, w2, w, MSE
 
 
-    def computeDistanceMatrix(self, w1, w2, w, MSE, distanceFunction, distance_weights= [1,0,0]):
-
+    def compute_distance_matrix(self, w, MSE, distance_weights= [1,0,0]):
+        ''' Computes a distance matrix between all points for a distance function which includes the raw distance values,
+        the parameters and error of the Local Linear Regression models for the respective points.
+        This will be used as the distance matrix for any clustering algorithms. '''
         D = np.zeros((self.N,self.N))
 
         wDs, mseDs = [], []
@@ -114,7 +127,6 @@ class LocalLinearRegression():
         maxMses, minMses = np.max(mseDs), np.min(mseDs)
         mseDs_norm = np.array(list(map(lambda x: normalise(maxMses, minMses, x), mseDs))).reshape(self.N, self.N)
 
-        print('Distance Weights: ', distance_weights)
         for i in range(self.N):
             for j in range(self.N):
                 # print(np.linalg.norm(w[i]-w[j]), MSE[i]-MSE[j], self.x[i]-self.x[j])
