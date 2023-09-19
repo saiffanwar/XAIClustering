@@ -60,25 +60,16 @@ def evaluate(model):
         axes[i].set_ylabel(features[i])
     fig.savefig('Figures/PHM08/predictions.pdf')
     print('MSE: ', mse)
-
-train_model = False
-if train_model:
-    model = train()
-    with open('model.pck', 'wb') as file:
-        pck.dump(model, file)
-with open('model.pck', 'rb') as file:
-    model = pck.load(file)
-#evaluate(model)
+    return y_pred
 
 
 def explain():
     chilliExplainer = CHILLI(model, x_train, y_train, x_test, y_test, features)
     explainer = chilliExplainer.build_explainer(mode='regression')
-    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = chilliExplainer.make_explanation(explainer, instance=35)
+    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = chilliExplainer.make_explanation(explainer, instance=35, num_samples=5000)
     chilliExplainer.plot_explanation(35, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, 'RUL')
     with open('explanation.pck', 'wb') as file:
         pck.dump([exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error], file)
-#explain()
 
 
 def plot_single_perturbation():
@@ -117,10 +108,22 @@ def make_linear_ensemble(xdata, ydata):
 
     return clustered_data, linear_params
 
-#with open('explanation.pck', 'rb') as file:
+train_model = False
+if train_model:
+    model = train()
+    with open('saved/model.pck', 'wb') as file:
+        pck.dump(model, file)
+with open('saved/model.pck', 'rb') as file:
+    model = pck.load(file)
+
+y_pred = evaluate(model)
+print(len(y_pred))
+#explain()
+#with open('saved/explanation.pck', 'rb') as file:
 #    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = pck.load(file)
 #perturbations = np.array(perturbations)
 #xdata, ydata = perturbations[:, features.index('s11')], model_perturbation_predictions
-xdata = x_train[:, features.index('s11')]
-ydata = y_train
+#ydata = y_train
+xdata = x_test[:, features.index('s11')]
+ydata = y_pred
 make_linear_ensemble(xdata, ydata)

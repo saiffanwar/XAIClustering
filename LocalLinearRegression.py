@@ -12,6 +12,7 @@ from cyclicRegression import CyclicRegression
 from copy import deepcopy
 import os
 import glob
+import pickle as pck
 
 class LocalLinearRegression():
     '''
@@ -133,7 +134,8 @@ class LocalLinearRegression():
 #                distance = wDs_norm[i,j] + mseDs_norm[i,j] + 0.25*self.xDs_norm[i,j]
                 distance = distance_weights[0]*self.xDs_norm[i,j] + distance_weights[1]*wDs_norm[i,j] +  distance_weights[2]*mseDs_norm[i,j]
                 D[i,j] = distance
-
+        with open('saved/distance_matrix.pck', 'wb') as file:
+            pck.dump([D, self.xDs_norm], file)
         return D, self.xDs_norm
 
 

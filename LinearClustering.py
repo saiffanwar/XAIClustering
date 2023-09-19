@@ -291,7 +291,7 @@ class LinearClustering():
                     fig.savefig(f'Figures/Clustering/OptimisedClusters/merged_{cluster_num}_{cluster_num+1}_{K}.pdf')
         return clustered_data
 
-    def check_cluster_sparsity(self, clustered_data, sparsity_threshold=0.25):
+    def check_cluster_sparsity(self, clustered_data, sparsity_threshold=0.10):
 
 
         largest_cluster_size = max([len(cluster) for cluster in clustered_data])

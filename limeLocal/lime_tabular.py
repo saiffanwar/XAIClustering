@@ -310,7 +310,7 @@ class LimeTabularExplainer(object):
                          labels=(1,),
                          top_labels=None,
                          num_features=10,
-                         num_samples=1000,
+                         num_samples=5000,
                          distance_metric='euclidean',
                          model_regressor=None,
                          sampling_method='gaussian',
@@ -628,6 +628,7 @@ class LimeTabularExplainer(object):
         return data, inverse
 
     def smotePerturbations(self, instance, num_samples=200):
+        print(f'Generating perturbations using SMOTE...{num_samples}')
         # Get the list of features and the training data
         features = list(self.feature_names)
         x_train = self.training_data

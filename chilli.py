@@ -27,12 +27,13 @@ class CHILLI():
 #        return
 
 
-    def make_explanation(self, explainer, instance, newMethod=True, num_features=9, num_samples=1000):
+    def make_explanation(self, explainer, instance, newMethod=True, num_features=9, num_samples=5000):
 #        print(f'Explaining Data instance {instance} {self.x_train.iloc[instance]}')
         predictor = self.model.predict
 #        nptest = np.array(self.x_test)
         nptest = self.x_test
-        exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(nptest[instance], predictor, num_features=num_features, num_samples=num_samples, newMethod=newMethod)
+        print(f'Generating {num_samples} samples')
+        exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(nptest[instance], predictor, num_features=num_features, num_samples=5000, newMethod=newMethod)
 #        prediction = predictor(nptest[instance].reshape(1,-1))
 
 #        model_perturbation_predictions = [p[1] for p in model_perturbation_predictions]
