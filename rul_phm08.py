@@ -117,8 +117,10 @@ def make_linear_ensemble(xdata, ydata):
 
     return clustered_data, linear_params
 
-with open('explanation.pck', 'rb') as file:
-    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = pck.load(file)
-perturbations = np.array(perturbations)
-xdata, ydata = perturbations[:, features.index('s14')], model_perturbation_predictions
+#with open('explanation.pck', 'rb') as file:
+#    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = pck.load(file)
+#perturbations = np.array(perturbations)
+#xdata, ydata = perturbations[:, features.index('s11')], model_perturbation_predictions
+xdata = x_train[:, features.index('s11')]
+ydata = y_train
 make_linear_ensemble(xdata, ydata)
