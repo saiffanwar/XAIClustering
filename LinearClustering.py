@@ -57,39 +57,60 @@ class LinearClustering():
         iter = 0
         self.colours = [np.random.rand(1,3) for i in range(K)]
         while iter < num_iterations:
-#            try:
                 if clustered_data == None:
-                    if medoids == None:
-                        medoids = random.choices(np.arange(0,len(self.D),1), k=K)
-                    # Reset clustered data for new clustsering.
-                    clustered_data = [[] for i in range(K)]
-                    minimum_distances = []
-                    for index,i in enumerate(self.D):
-                        minimum_distances.append(min([i[j] for j in medoids]))
-                        closest = np.argmin([i[j] for j in medoids])
-                        clustered_data[closest].append(index)
+                        if medoids == None:
+                            medoids = random.choices(np.arange(0,len(self.D),1), k=K)
+                        # Reset clustered data for new clustsering.
+                        clustered_data = [[med] for med in medoids]
+                        minimum_distances = []
+                        for index,i in enumerate(self.D):
+                            if index not in medoids:
+#                                if index in medoids:
+#                                    for med in medoids:
+#                                        print(f'Distance between {index} and {med}',i[med])
+#                                    print(np.argmin([i[j] for j in medoids]))
+                                minimum_distances.append(min([i[j] for j in medoids]))
+                                closest = np.argmin([i[j] for j in medoids])
+                                clustered_data[closest].append(index)
 
-                    _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
-                    clustering_cost = self.calculate_clustering_cost(clustered_data, linear_params)
-                    optimal_counter = 0
-
+#                        clustered_data = [cluster for cluster in clustered_data if cluster != []]
+                        _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+                        clustering_cost = self.calculate_clustering_cost(clustered_data, linear_params)
+                        optimal_counter = 0
 
                 else:
+                    # Recluster the data to find the optimal clustering.
                     clustering_cost, linear_params, clustered_data, medoids = self.recluster(K, clustered_data, medoids, clustering_cost, linear_params)
 
-                iter += 1
-#            except:
-#                None
+                    iter += 1
 
         #  Check if there is any clusters contained within other clusters. If so, merge the child cluster into the parent cluster and recalculate the           new cluster model parameters.
-        # check_cluster_overlap also sorts the clusters into x order so neighbouring clusters are next to each other.
 
         fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-        fig.savefig(f'Figures/Clustering/OptimisedClusters/preMerge_{K}.png')
-        clustered_data = self.check_cluster_overlap(clustered_data)
+        fig.savefig(f'Figures/Clustering/OptimisedClusters/before_merging_{K}.pdf')
+        clustered_data = self.check_cluster_containments(clustered_data)
         _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+
+
+        # Check if neighbouring clusters overlap.
+        fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost=100)
+        fig.savefig(f'Figures/Clustering/OptimisedClusters/before_checking_overlaps_{K}.pdf')
+        clustered_data = self.check_cluster_overlap(clustered_data, linear_params, K)
+        _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+
+
+        # Check if parameters of neighbouring clusters models are similar. If they are similar, merge them.
+        fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost=100)
+        fig.savefig(f'Figures/Clustering/OptimisedClusters/after_checking_overlaps_{K}.pdf')
         clustering_cost = self.calculate_clustering_cost(clustered_data, linear_params)
         medoids = [random.choice(clustered_data[i]) for i in range(len(clustered_data))]
+
+
+        # Check size of clusters. If 10x smaller than neighbouring clusters, merge them.
+        clustered_data = self.check_cluster_sparsity(clustered_data)
+        _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+        fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost=100)
+        fig.savefig(f'Figures/Clustering/OptimisedClusters/after_checking_sparsity_{K}.pdf')
 
         # Check if parameters of neighbouring clusters models are similar. If they are similar, merge them.
         merged_clusters = self.check_cluster_similarity(clustered_data, linear_params)
@@ -98,17 +119,19 @@ class LinearClustering():
             clustering_cost = self.calculate_clustering_cost(clustered_data, linear_params)
             medoids = [random.choice(clustered_data[i]) for i in range(len(clustered_data))]
             _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+        fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
+        fig.savefig(f'Figures/Clustering/OptimisedClusters/after_similarity_merge_{K}.pdf')
 
         # If the number of clusters has changed, pick new medoids from the same clusters and optimise further.
         if len(clustered_data) < K:
             K = len(clustered_data)
-            fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/merged_{K}.png')
+#            fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
+#            fig.savefig(f'Figures/Clustering/OptimisedClusters/merged_{K}.pdf')
             return self.adapted_clustering(K, medoids, clustered_data, linear_params, clustering_cost)
         else:
             print(f'Saving figure for final {K} clustering.')
             fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/final_{K}.png')
+            fig.savefig(f'Figures/Clustering/OptimisedClusters/final_{K}.pdf')
             return clustered_data, medoids, linear_params, clustering_cost
 
 
@@ -123,15 +146,22 @@ class LinearClustering():
         '''
 
         random_cluster = random.choice(np.arange(0,K,1))
+
+        while len(clustered_data[random_cluster]) == 1:
+            random_cluster = random.choice(np.arange(0,K,1))
+
         prev_medoid = medoids[random_cluster]
         clustered_data[random_cluster].remove(prev_medoid)
+
         new_medoid = random.choice(clustered_data[random_cluster])
         new_medoids = deepcopy(medoids)
         new_medoids[random_cluster] = new_medoid
         clustered_data[random_cluster].append(prev_medoid)
 
+
+
         # Reset clustered data for new clustsering.
-        new_clustered_data = [[] for i in range(K)]
+        new_clustered_data = [[new_med] for new_med in new_medoids]
         for index,i in enumerate(self.D):
             closest = np.argmin([i[j] for j in new_medoids])
             new_clustered_data[closest].append(index)
@@ -144,7 +174,7 @@ class LinearClustering():
             clustered_data = new_clustered_data
             medoids = new_medoids
             fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/{K}/AdaptedClustering_{iter}.png')
+            fig.savefig(f'Figures/Clustering/{K}/AdaptedClustering_{iter}.pdf')
         return clustering_cost, linear_params, clustered_data, medoids
 
 
@@ -157,28 +187,32 @@ class LinearClustering():
         '''
 
         merges = []
-
+        original_clustering = deepcopy(clustered_data)
+        current_clustering = deepcopy(clustered_data)
         for cluster_num, cluster_params in enumerate(linear_params):
             # Check similarity with next cluster.
-            if cluster_num != len(linear_params)-1:
+            if cluster_num < len(current_clustering)-1:
                 next_cluster_params = linear_params[cluster_num+1]
 #                similarity = np.linalg.norm(np.array(cluster_params) - np.array(next_cluster_params))
-                similarity = abs(cluster_params[0] - next_cluster_params[0])
-                # The similarity threshold is defined here. Increasing the thresold will result in more clusters being merged.
-                if similarity < 0.075:
-                    print(f'Similarity between {cluster_num} and {cluster_num+1} is {similarity}.')
-                    merges.append([cluster_num, cluster_num+1])
+                if cluster_params[0] != 0 and next_cluster_params[0] != 0:
+                    similarity = abs(cluster_params[0] - next_cluster_params[0])
+                    print(f'{cluster_num}: {cluster_params},{cluster_num+1}: {next_cluster_params}, Similarity: {similarity}')
+                    # The similarity threshold is defined here. Increasing the thresold will result in more clusters being merged.
+                    if similarity < 0:
+                        print(f'Similarity between {cluster_num} and {cluster_num+1} is {similarity}.')
+                        for i in range(len(current_clustering)):
+                            if i == cluster_num:
+                                current_clustering[i].extend(current_clustering[i+1])
+                                current_clustering.remove(current_clustering[i+1])
+                                _, linear_params = self.calc_cluster_models(self.x, self.y, current_clustering)
 
-        if merges != []:
-            merged_clusters = deepcopy(clustered_data)
-            for merge in merges:
-                merged_clusters[merge[1]].extend(merged_clusters[merge[0]])
-                merged_clusters[merge[0]] = []
 
-            merged_clusters = [i for i in merged_clusters if i != []]
-            return merged_clusters
-        else:
-            return None
+
+
+        return current_clustering
+
+
+
 
 
     def order_clusters(self, clustered_data):
@@ -186,14 +220,15 @@ class LinearClustering():
         '''
         Utility function which orders the clusters based on the minimum x value of each cluster.
         '''
+        cluster_datapoints = self.cluster_indices_to_datapoints(clustered_data)
 
-        minimums = [min(clustered_data[i]) for i in range(len(clustered_data))]
+        minimums = [min(cluster_datapoints[i][0]) for i in range(len(cluster_datapoints))]
         index_sorted = sorted(range(len(minimums)), key=lambda k: minimums[k])
         ordered_clusters = [clustered_data[i] for i in index_sorted]
 
         return ordered_clusters
 
-    def check_cluster_overlap(self, clustered_data):
+    def check_cluster_containments(self, clustered_data):
 
         '''
         Utility function which checks for overlap between clusters or (child) clusters entirely contained
@@ -205,15 +240,12 @@ class LinearClustering():
         contained_clusters, overlapping_clusters = [], []
         for cluster1, range1 in enumerate(cluster_ranges):
             for cluster2, range2 in enumerate(cluster_ranges):
-                if range1[0] < range2[0] < range1[1] or range1[0] < range2[1] < range1[1]:
-                    if range1[0] < range2[0] < range1[1] and range1[0] < range2[1] < range1[1]:
-                        print(f'Cluster {cluster2} is contained within Cluster {cluster1}.')
-                        contained_clusters.append([cluster1, cluster2])
-                    else:
+                if cluster1 != cluster2:
+                    if range1[0] <= range2[0] <= range1[1] or range1[0] <= range2[1] <= range1[1]:
+                        if range1[0] <= range2[0] <= range1[1] and range1[0] <= range2[1] <= range1[1]:
+                            print(f'Cluster {cluster2} is contained within Cluster {cluster1}.')
+                            contained_clusters.append([cluster1, cluster2])
 
-                        print(f'Overlap between cluster {cluster1} and {cluster2}.')
-                        print(f'Cluster {cluster1} has range {range1}.')
-                        print(f'Cluster {cluster2} has range {range2}.')
 
         if len(contained_clusters) > 0:
             merged_clusters = self.adopt_clusters(clustered_data, contained_clusters)
@@ -221,6 +253,64 @@ class LinearClustering():
         else:
             return self.order_clusters(clustered_data)
 
+
+    def check_cluster_overlap(self, clustered_data, linear_params, K):
+
+        cluster_datapoints = self.cluster_indices_to_datapoints(clustered_data)
+        cluster_ranges = [[min(cluster_datapoints[i][0]), max(cluster_datapoints[i][0])] for i in range(len(cluster_datapoints))]
+        new_clustering = deepcopy(clustered_data)
+        for cluster_num, cluster in enumerate(clustered_data):
+            if cluster_num < len(clustered_data)-1:
+                range1 = cluster_ranges[cluster_num]
+                range2 = cluster_ranges[cluster_num+1]
+                # If the beginning of the following cluster falls within this cluster, seperate them through the midpoint of the intersection.
+                if range1[0] <= range2[0] <= range1[1]:
+                    midpoint = range2[0] + (range1[1] - range2[0])/2
+                    print(f'Cluster {cluster_num} and Cluster {cluster_num+1} overlap. Splitting at {midpoint}.')
+
+                    both_cluster_indices = cluster + clustered_data[cluster_num+1]
+
+                    new_cluster1, new_cluster2 = [], []
+
+                    new1xs, new2xs = [], []
+                    for indexed_point in both_cluster_indices:
+                        x = self.x[indexed_point]
+                        y = self.y[indexed_point]
+                        if x <= midpoint:
+                            new_cluster1.append(indexed_point)
+                            new1xs.append(x)
+                        else:
+                            new_cluster2.append(indexed_point)
+                            new2xs.append(x)
+#                    print(midpoint, new1xs, new2xs)
+                    clustered_data[cluster_num] = new_cluster1
+                    clustered_data[cluster_num+1] = new_cluster2
+
+                    _,linear_params = self.calc_cluster_models(self.x, self.y, clustered_data)
+                    fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost=100)
+                    fig.savefig(f'Figures/Clustering/OptimisedClusters/merged_{cluster_num}_{cluster_num+1}_{K}.pdf')
+        return clustered_data
+
+    def check_cluster_sparsity(self, clustered_data, sparsity_threshold=0.25):
+
+
+        largest_cluster_size = max([len(cluster) for cluster in clustered_data])
+        contained_clusters = []
+        for cluster_num, cluster in enumerate(clustered_data):
+            if cluster_num < len(clustered_data)-1:
+                if len(cluster) < sparsity_threshold*largest_cluster_size:
+                    print(f'Cluster {cluster_num} is sparse. Combining with Cluster {cluster_num+1}.')
+                    contained_clusters.append([cluster_num+1, cluster_num])
+
+            if cluster_num == len(clustered_data)-1:
+                if len(cluster) < sparsity_threshold*largest_cluster_size:
+                    print(f'Cluster {cluster_num} is sparse. Combining with Cluster {cluster_num-1}.')
+                    contained_clusters.append([cluster_num-1, cluster_num])
+
+        merged_clusters = self.adopt_clusters(clustered_data, contained_clusters)
+
+
+        return merged_clusters
 
     def create_cluster_heirarchy(self, contained_clusters):
 
@@ -340,14 +430,13 @@ class LinearClustering():
 #            colours.append(colour)
             colour = colours[i]
             axes[0].scatter(clustered_data[i][0], clustered_data[i][1], s=5, marker='o', c=colour, label='_nolegend_')
-            try:
-                cluster_range = np.arange(min(clustered_data[i][0]), max(clustered_data[i][0]), 1)
-            except:
+            cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
+            axes[0].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
             axes[0].plot(cluster_range, w*cluster_range+b, linewidth=5, c=colour)
+            if medoids != None:
+                axes[0].scatter(self.x[medoids[i]], self.y[i], s=100, marker='X', c=colour, label='_nolegend_')
 
-        for index, i in enumerate(medoids):
-            axes[0].scatter(self.x[i], self.y[i], s=100, marker='X', c=colours[index], label='_nolegend_')
-            axes[0].set_title(f'Clustering Cost: {clustering_cost}')
+        axes[0].set_title(f'Clustering Cost: {clustering_cost}')
 
 
         axes[0].legend([str(i) for i in range(len(clustered_data))], loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=len(clustered_data)/2)

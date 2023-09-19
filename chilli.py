@@ -5,20 +5,22 @@ from sklearn.metrics import mean_squared_error
 
 class CHILLI():
 
-    def __init__(self, model, x_train, y_train, x_test, y_test):
+    def __init__(self, model, x_train, y_train, x_test, y_test, features):
         self.model = model
+        # These should be scaled numpy arrays
         self.x_train = x_train
         self.y_train = y_train
         self.x_test = x_test
         self.y_pred = model.predict(x_test)
         self.y_test = y_test
-        self.selectedFeatures = x_train.columns.tolist()
+        self.features = features
 
 
     def build_explainer(self, categorical_features=None, kernel_width=None, mode='classification'):
 #        The explainer is built herem on the training data with the features and type of model specified.
-        nptrain = np.array(self.x_train.values)
-        explainer = lime_tabular.LimeTabularExplainer(nptrain, feature_names=self.x_train.columns, categorical_features=categorical_features, mode=mode, verbose=True, kernel_width=kernel_width)
+#        nptrain = np.array(self.x_train)
+        nptrain = self.x_train
+        explainer = lime_tabular.LimeTabularExplainer(nptrain, feature_names=self.features, categorical_features=categorical_features, mode=mode, verbose=True, kernel_width=kernel_width)
         return explainer
 #    def preidctor_function(self, testData):
 #        predict_proba = self.model.predict_proba(testData)
@@ -26,13 +28,14 @@ class CHILLI():
 
 
     def make_explanation(self, explainer, instance, newMethod=True, num_features=9, num_samples=1000):
-        print(f'Explaining Data instance {instance} {self.x_train.iloc[instance]}')
-        predictor = self.model.predict_proba
-        nptest = np.array(self.x_test.values)
+#        print(f'Explaining Data instance {instance} {self.x_train.iloc[instance]}')
+        predictor = self.model.predict
+#        nptest = np.array(self.x_test)
+        nptest = self.x_test
         exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(nptest[instance], predictor, num_features=num_features, num_samples=num_samples, newMethod=newMethod)
 #        prediction = predictor(nptest[instance].reshape(1,-1))
 
-        model_perturbation_predictions = [p[1] for p in model_perturbation_predictions]
+#        model_perturbation_predictions = [p[1] for p in model_perturbation_predictions]
         explanation_error = mean_squared_error(model_perturbation_predictions, exp_perturbation_predictions)
 
         return exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error
@@ -47,7 +50,7 @@ class CHILLI():
 
         exp_size = 12
         # Plot the explanation
-        all_features = self.x_train.columns.tolist()
+        all_features = self.features
         explained_features = [i[0] for i in exp_list][:12]
 
         explained_feature_indices = [all_features.index(i) for i in explained_features]
@@ -93,10 +96,10 @@ class CHILLI():
         for i in range(len(perturbation_plots)):
             perturbation_plots[i].scatter(instance_x[i], instance_model_y ,c="red",marker="o", s=100)
 
-#            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_exp_y, c=perturbation_weights, cmap='Oranges', s=3, alpha=0.9)
-#            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_model_y, c=perturbation_weights, cmap='Greens', s=3, alpha=0.9)
-            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_exp_y, color='Orange',  s=3, alpha=0.9)
-            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_model_y, color='green', s=3, alpha=0.9)
+            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_exp_y, c=perturbation_weights, cmap='Oranges', s=3, alpha=0.9)
+            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_model_y, c=perturbation_weights, cmap='Greens', s=3, alpha=0.9)
+#            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_exp_y, color='Orange',  s=3, alpha=0.9)
+#            perturbation_plots[i].scatter(perturbations_x[:,i],perturbations_model_y, color='green', s=3, alpha=0.9)
 
             perturbation_plots[i].scatter(instance_x[i], instance_model_y, c="red",marker="o", s=100, label='_nolegend_')
             perturbation_plots[i].set_title(explained_features[i], fontsize=fontsize)
