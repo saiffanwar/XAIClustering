@@ -12,7 +12,7 @@ class LimeBase(object):
     """Class for learning a locally linear sparse model from perturbed data"""
     def __init__(self,
                  kernel_fn,
-                 verbose=False,
+                 verbose=True,
                  random_state=None):
         """Init function
 
@@ -188,8 +188,8 @@ class LimeBase(object):
                                                feature_selection)
 
         # print(neighborhood_data)
-        CR = cyclicRegression.CyclicRegression()
-        neighborhood_data = CR.rotateCyclicData(neighborhood_data, neighborhood_labels, weights, num_features)
+#        CR = cyclicRegression.CyclicRegression()
+#        neighborhood_data = CR.rotateCyclicData(neighborhood_data, neighborhood_labels, weights, num_features)
         # if model_regressor is None:
         #     model_regressor = Ridge(alpha=1, fit_intercept=True,
         #                             random_state=self.random_state)
@@ -199,17 +199,17 @@ class LimeBase(object):
         #                len(labels_column), type(labels_column))
         easy_model.fit(list(neighborhood_data),
                        labels_column, sample_weight=weights)
-
         prediction_score = easy_model.score(
             neighborhood_data[:, used_features],
             labels_column, sample_weight=weights)
         allexpPreds = easy_model.predict(neighborhood_data)
+
         local_pred = easy_model.predict(neighborhood_data[0, used_features].reshape(1, -1))
-        # if self.verbose:
-        #     print('Intercept', easy_model.intercept_)
-        #     print('Prediction_local', local_pred,)
-        #     print('Right:', neighborhood_labels[0, label])
-        return (easy_model.intercept_,
+        if self.verbose:
+            print('Intercept', easy_model.intercept_)
+            print('Prediction_local', local_pred,)
+            print('Right:', neighborhood_labels[0, label])
+        return (easy_model, easy_model.intercept_,
                 sorted(zip(used_features, easy_model.coef_),
                        key=lambda x: np.abs(x[1]), reverse=True),
                 prediction_score, local_pred, allexpPreds, weights)

@@ -62,7 +62,6 @@ def calcAllDistances(instance, datapoints, features):
             maxVal = maxVals[f]
             euclidean = lambda num2 : abs(instance[f]-num2)/maxVal
             distances[feature] = list(map(euclidean, [i[f] for i in datapoints]))
-
     return distances
 
 

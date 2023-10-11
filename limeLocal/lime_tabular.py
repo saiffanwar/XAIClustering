@@ -6,6 +6,7 @@ import copy
 from functools import partial
 import json
 from threading import local
+from typing_extensions import override
 import warnings
 
 import numpy as np
@@ -33,6 +34,12 @@ from limeLocal.distances import *
 import time
 import cProfile as profile
 import pstats
+from tqdm import tqdm
+
+from LocalLinearRegression import LocalLinearRegression
+
+
+
 class TableDomainMapper(explanation.DomainMapper):
     """Maps feature ids to names, generates table views, etc"""
 
@@ -134,8 +141,11 @@ class LimeTabularExplainer(object):
 
     def __init__(self,
                  training_data,
+                 test_data,
                  mode="regression",
-                 training_labels=None,
+                 automated_locality=False,
+                 test_labels=None,
+                 test_predictions=None,
                  feature_names=None,
                  categorical_features=None,
                  categorical_names=None,
@@ -200,7 +210,10 @@ class LimeTabularExplainer(object):
         self.categorical_names = categorical_names or {}
         self.sample_around_instance = sample_around_instance
         self.training_data_stats = training_data_stats
-        self.training_data = training_data
+        self.test_data = test_data
+        self.automated_locality = automated_locality
+        self.test_labels = test_labels
+        self.test_predictions = test_predictions
 
         # Check and raise proper error in stats are supplied in non-descritized path
         if self.training_data_stats:
@@ -256,6 +269,7 @@ class LimeTabularExplainer(object):
             kernel_width = np.sqrt(training_data.shape[1]) * .75
             # kernel_width = 0.75
         kernel_width = float(kernel_width)
+        print("kernel_width", kernel_width)
         if kernel is None:
             def kernel(d, kernel_width):
                 return np.sqrt(np.exp(-(d ** 2) / kernel_width ** 2))
@@ -306,11 +320,12 @@ class LimeTabularExplainer(object):
 
     def explain_instance(self,
                          data_row,
+                         instance_num,
                          predict_fn,
                          labels=(1,),
                          top_labels=None,
                          num_features=10,
-                         num_samples=5000,
+                         num_samples=1000,
                          distance_metric='euclidean',
                          model_regressor=None,
                          sampling_method='gaussian',
@@ -355,7 +370,7 @@ class LimeTabularExplainer(object):
 
         '''Generate Perturbed data around neighbourhod. Creates data which is a bianryu form of the categorical features.'''
         if newMethod:
-            perturbations = self.smotePerturbations(data_row, num_samples=num_samples)
+            perturbations = self.smotePerturbations(data_row, instance_num, num_samples=num_samples)
             # data = self.genPerturbations(data_row, num_samples=2000)
             inverse=perturbations
         else:
@@ -494,12 +509,19 @@ class LimeTabularExplainer(object):
 
             # weights = [self.kernel_fn(d) for d in weights]
         # else:
-        weights = [self.kernel_fn(d) for d in distances]
+        if newMethod == True:
+            if self.automated_locality==False:
+                weights = [self.kernel_fn(d) for d in distances]
+            else:
+                weights = [1 for d in distances]
+        else:
+            weights = [self.kernel_fn(d) for d in distances]
         self.weights = weights
 
 
         for label in labels:
-            (ret_exp.intercept[label],
+            (local_model,
+             ret_exp.intercept[label],
              ret_exp.local_exp[label],
              ret_exp.score[label],
              ret_exp.local_pred[label],
@@ -519,7 +541,7 @@ class LimeTabularExplainer(object):
             ret_exp.local_exp[1] = [x for x in ret_exp.local_exp[0]]
             ret_exp.local_exp[0] = [(i, -1 * j) for i, j in ret_exp.local_exp[1]]
 
-        return ret_exp, perturbations, perturbation_predictions, ret_exp.allexpPreds
+        return ret_exp, local_model, perturbations, perturbation_predictions, ret_exp.allexpPreds
 
     def __data_inverse(self,
                        data_row,
@@ -627,87 +649,179 @@ class LimeTabularExplainer(object):
         inverse[0] = data_row
         return data, inverse
 
-    def smotePerturbations(self, instance, num_samples=200):
-        print(f'Generating perturbations using SMOTE...{num_samples}')
+    def smotePerturbations(self, instance, instance_num, num_samples=200):
         # Get the list of features and the training data
         features = list(self.feature_names)
-        x_train = self.training_data
+        x_test = self.test_data
+        y_test = self.test_labels
+        y_pred = self.test_predictions
+
+        x_test = x_test[:2000]
+        y_pred = y_pred[:2000]
 
         # Start the list of perturbations with the instance being perturbed as first item
         perturbedData = [instance]
 
-        # Define some information needed for later:
-        dict_x_train = {} # Seperate training data into lists of feature data
-        for f, feature in enumerate(features):
-            dict_x_train[feature] = [i[f] for i in x_train]
-        # discreteFeatures = ['Day', 'Time Interval'] # Needed for interpolation
-        discreteFeatures = features
-        maxVals = [max(val) for val in [dict_x_train[f] for f in dict_x_train.keys()]] # Needed to normalise euclidean distances.
-        possValues = [np.unique(val) for val in [dict_x_train[f] for f in dict_x_train.keys()]] # Needed to caculate cyclic distances.
+        distances = combinedFeatureDistances(calcAllDistances(instance, x_test, features))
 
-        # Calculate distances and weights to assign probabilities when selecting point for interpolation.
-        # Distance is calculated in each feature dimension.
-        distances = combinedFeatureDistances(calcAllDistances(instance, x_train, features))
-        # weights = {}
-        # for f in distances.keys():
-        #     weights[f] = [self.kernel_fn(d) for d in distances[f]]
+#        for i in range(len(features)):
+#            xdata = x_test[:, i]
+#            LLR = LocalLinearRegression(xdata,y_pred, dist_function='Euclidean')
+#            w1, w2, w, MSE = LLR.calculateLocalModels()
+#            print('Calculating Distances')
+##
+#            distance_weights = [0,1,0]
+#            D, xDs= LLR.compute_distance_matrix(w, MSE, distance_weights=distance_weights, instance=instance_num)
 
-        # kernel_width = 0.5
-        # def kernel(d, kernel_width):
-        #     return np.sqrt(np.exp(-(d ** 2) / kernel_width ** 2))
-        # print('kernel width: ', kernel_width)
-        # kernel_fn = partial(kernel, kernel_width=kernel_width)
-        weights = [self.kernel_fn(d) for d in distances]
-
-        # weights = distanceToWeightsList(combinedFeatureDistances(distances))
+        # Reduce the range of the training data set to only include the same clusters as the instance. But all points should be points which satisfy all of the clusters.
+        if self.automated_locality == True:
 
 
 
+            K=10
+            distance_weights=[1,1,0]
 
-        # Loop for number of perturbations required
-        while len(perturbedData) <= num_samples+1:
-            perturbation = np.zeros(len(features))
-            # Remaining features starts as list of all features to be reduced later.
-            remainingFeatures = copy.deepcopy(features)
+            self.feature_ensembles = pck.load(open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb'))
+            cluster_ranges = [self.feature_ensembles[f][2] for f in features]
+            each_feature_clustered_data = [self.feature_ensembles[f][0] for f in features]
+            instance_cluster_ranges = []
+            instance_clusters = []
+#            pprint(list(zip(features, instance, cluster_ranges)))
 
-            interpolationAmount = random.uniform(0,1)
-            selectedPoint = random.choices(x_train, weights=weights, k=1)[0]
+            # Get the cluster ranges and the cluster datapoints for the instance
+            included_features = [f for f in features]
+            for i, feature in enumerate(features):
+                for j, cluster in enumerate(cluster_ranges[i]):
+                    if cluster[0] <= instance[i] <= cluster[1]:
+                        instance_cluster_ranges.append(cluster)
+                        instance_clusters.append(each_feature_clustered_data[i][j])
+                        included_features.remove(feature)
+                        break
+#            print(included_features)
+#            fig, axes = plt.subplots(int(np.ceil(len(features)/2)), 2, figsize=(10, 28))
+#            plt.subplots_adjust(left=0.1,
+#                            bottom=0.1,
+#                            right=0.9,
+#                            top=0.9,
+#                            wspace=0.2,
+#                            hspace=0.4)
+#            ax = fig.get_axes()
+#            colours = [np.random.rand(1,3) for i in range(20)]
+#
+#            for f, key in enumerate(self.feature_ensembles.keys()):
+#                clustered_data, linear_params, cluster_x_ranges = self.feature_ensembles[key]
+##                ax[f].set_xlim(min([ranges[0] for ranges in cluster_x_ranges[f]])*1.2, max([ranges[1] for ranges in cluster_x_ranges[f]])*1.2)
+#                ax[f].scatter(x_test[:,f], y_pred, s=1, marker='o', c='green', label='_nolegend_', alpha=0.9)
+#                ax[f].scatter(instance_clusters[f][0], instance_clusters[f][1], s=1, marker='o', c='black', label='_nolegend_', alpha=0.9)
+#                for i in range(len(clustered_data)):
+#                    w,b = linear_params[i]
+##            colours.append(colour)
+#                    colour = colours[i]
+##                    cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
+##                    ax[f].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
+##                    ax[f].plot(cluster_range, w*cluster_range+b, linewidth=1, c=colour)
+#
+#                ax[f].set_title(key)
+#
+#            fig.savefig('Figures/exp_ensembles.pdf', bbox_inches='tight')
 
-            # While all features have not been perturbed
-            while len(remainingFeatures) != 0:
-                # Select a random feature which is yet to be perturbed
-                selectedFeature = random.choice(remainingFeatures)
-                selectedFeatureIndex = features.index(selectedFeature)
 
-                # Get the value of that feature in the isntance
-                instance_value = instance[selectedFeatureIndex]
+            reduced_x_test = []
+            for x in x_test:
+                for f in range(len(features)):
+                    if instance_cluster_ranges[f][0] <= x[f] <= instance_cluster_ranges[f][1]:
+                        reduced_x_test.append(x)
+                        break
 
-                # Select a random training data sample based with probability based on the distance to the instance.
-                # selectedValue = random.choices((dict_x_train[selectedFeature]), weights=weights, k=1)[0]
-                selectedValue = selectedPoint[selectedFeatureIndex]
-                # Select a random value between 0 and 1 and adjust the instance value accordingly.
-                interpolationDifference = interpolationAmount*(selectedValue - instance_value)
-                interpolatedValue = instance_value+interpolationDifference
+#            # From the test data, fetch all the points that fall within the clusters.
+            reduced_x_test_dict = {f: [] for f in self.feature_ensembles.keys()}
+            for f, key in enumerate(self.feature_ensembles.keys()):
+                for x in x_test:
+                    if instance_cluster_ranges[f][0] <= x[f] <= instance_cluster_ranges[f][1]:
+                        reduced_x_test_dict[key].append(x[f])
 
-                # For cyclic features, if interpolated value is in fact further, interpolate in the other direction.
-                if calcSingleDistance(instance_value, selectedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]) < calcSingleDistance(instance_value, interpolatedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]):
-                    interpolatedValue = instance_value-interpolationAmount
 
-                # If selected feature is discrete, adjust the interpolation so it takes the closest existing value.
-                if selectedFeature in discreteFeatures:
-                    interpolatedValue = min(np.unique(dict_x_train[selectedFeature]), key=lambda x:abs(x-interpolatedValue))
-                # if selectedFeature == 'Date':
-                #     print(instance_value, selectedValue, interpolatedValue)
-                # Mark the working feature as perturbed by removing from the list of features yet to be perturbed.
-                remainingFeatures.remove(selectedFeature)
-                perturbation[selectedFeatureIndex] = interpolatedValue
+            weights=[1 for d in distances]
 
-            # Once all features have been perturbed, add the perturbation to the list of perturbations.
-            perturbedData.append(perturbation)
+            # Define some information needed for later:
+            dict_x_test = {} # Seperate training data into lists of feature data
+            for f, feature in enumerate(features):
+                dict_x_test[feature] = [i[f] for i in x_test]
+            discreteFeatures = features
+            maxVals = [max(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to normalise euclidean distances.
+            possValues = [np.unique(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to caculate cyclic distances.
 
-        # prof.disable()
-        # stats = pstats.Stats(prof).strip_dirs().sort_stats("cumtime")
-        # stats.print_stats()
+            # Calculate distances and weights to assign probabilities when selecting point for interpolation.
+            # Distance is calculated in each feature dimension.
+            # Loop for number of perturbations required
+#        while len(perturbedData) <= num_samples+1:
+            for i in range(num_samples):
+                perturbation = np.zeros(len(features))
+                # Remaining features starts as list of all features to be reduced later.
+                remainingFeatures = copy.deepcopy(features)
+
+                interpolationAmount = random.uniform(0,1)
+
+                for i, f in enumerate(reduced_x_test_dict.keys()):
+                    selectedPoint = random.choice(reduced_x_test_dict[f])
+                    perturbation[i] = selectedPoint
+                # Once all features have been perturbed, add the perturbation to the list of perturbations.
+                perturbedData.append(perturbation)
+        else:
+            weights = [self.kernel_fn(d) for d in distances]
+#            weights = D
+#            weights = [d for d in distances]
+
+            # Define some information needed for later:
+            dict_x_test = {} # Seperate training data into lists of feature data
+            for f, feature in enumerate(features):
+                dict_x_test[feature] = [i[f] for i in x_test]
+            discreteFeatures = features
+            maxVals = [max(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to normalise euclidean distances.
+            possValues = [np.unique(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to caculate cyclic distances.
+
+            # Calculate distances and weights to assign probabilities when selecting point for interpolation.
+            # Distance is calculated in each feature dimension.
+            # Loop for number of perturbations required
+#        while len(perturbedData) <= num_samples+1:
+            for i in range(num_samples):
+                perturbation = np.zeros(len(features))
+                # Remaining features starts as list of all features to be reduced later.
+                remainingFeatures = copy.deepcopy(features)
+
+                interpolationAmount = random.uniform(0,1)
+                selectedPoint = random.choices(x_test, weights=weights, k=1)[0]
+
+                # While all features have not been perturbed
+                while len(remainingFeatures) != 0:
+                    # Select a random feature which is yet to be perturbed
+                    selectedFeature = random.choice(remainingFeatures)
+                    selectedFeatureIndex = features.index(selectedFeature)
+
+                    # Get the value of that feature in the isntance
+                    instance_value = instance[selectedFeatureIndex]
+
+                    # Select a random training data sample based with probability based on the distance to the instance.
+                    # selectedValue = random.choices((dict_x_test[selectedFeature]), weights=weights, k=1)[0]
+                    selectedValue = selectedPoint[selectedFeatureIndex]
+                    # Select a random value between 0 and 1 and adjust the instance value accordingly.
+                    interpolationDifference = interpolationAmount*(selectedValue - instance_value)
+                    interpolatedValue = instance_value+interpolationDifference
+
+                    # For cyclic features, if interpolated value is in fact further, interpolate in the other direction.
+                    if calcSingleDistance(instance_value, selectedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]) < calcSingleDistance(instance_value, interpolatedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]):
+                        interpolatedValue = instance_value-interpolationAmount
+
+                    # If selected feature is discrete, adjust the interpolation so it takes the closest existing value.
+                    if selectedFeature in discreteFeatures:
+                        interpolatedValue = min(np.unique(dict_x_test[selectedFeature]), key=lambda x:abs(x-interpolatedValue))
+                    # Mark the working feature as perturbed by removing from the list of features yet to be perturbed.
+                    remainingFeatures.remove(selectedFeature)
+                    perturbation[selectedFeatureIndex] = interpolatedValue
+
+                # Once all features have been perturbed, add the perturbation to the list of perturbations.
+                perturbedData.append(perturbation)
+
         return perturbedData
 
 class RecurrentTabularExplainer(LimeTabularExplainer):
@@ -816,7 +930,7 @@ class RecurrentTabularExplainer(LimeTabularExplainer):
         return predict_proba
 
     def explain_instance(self, data_row, classifier_fn, labels=(1,),
-                         top_labels=None, num_features=10, num_samples=5000,
+                         top_labels=None, num_features=10, num_samples=1000,
                          distance_metric='euclidean', model_regressor=None):
         """Generates explanations for a prediction.
 
