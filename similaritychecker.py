@@ -49,7 +49,7 @@ def calculate_line_similarity(x, y, cluster_num_1, cluster_num_2, cluster1, clus
         axes.title.set_text('Error: ' + str(error))
         fig.savefig(f'Figures/Clustering/OptimisedClusters/{feature_name}/{cluster_num_1}_{cluster_num_2}_similarity.pdf')
 
-    return error
+    return error, [[x1, y1], [x2, y2], [line2_interp_x1, line1_interp_x2]]
 
 
 

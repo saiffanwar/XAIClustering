@@ -45,7 +45,8 @@ class CHILLI():
 #        prediction = predictor(nptest[instance].reshape(1,-1))
         self.local_model = local_model
 #        model_perturbation_predictions = [p[1] for p in model_perturbation_predictions]
-        explanation_error = mean_squared_error(model_perturbation_predictions, exp_perturbation_predictions)
+        explanation_error = mean_squared_error(model_perturbation_predictions, exp_perturbation_predictions, squared=False)
+        exp.intercept = self.local_model.intercept_
 
         return exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error
 
@@ -177,7 +178,7 @@ class CHILLI():
         # Plot convergence of error as features are added
         exp_convergence = []
         for included_features in range(len(explained_features)):
-            intercept = self.local_model.intercept_
+            intercept = exp.intercept
             for i in range(included_features):
                 intercept+= feature_contributions[i]*instance_x[i]
 
@@ -197,7 +198,6 @@ class CHILLI():
                 showlegend=True
             else:
                 showlegend=False
-
             fig.add_trace(go.Scatter(x=explained_features_x_test[:,i],y=self.y_pred,
                                      mode='markers', marker = dict(color='lightgrey', size=3, opacity=0.9),
                                      showlegend=showlegend, name='Test data'),

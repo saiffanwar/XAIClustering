@@ -15,6 +15,7 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import random
 import sys
+from pprint import pprint
 
 plt.rcParams['text.usetex'] = True
 
@@ -28,7 +29,6 @@ def data_preprocessing():
     Y = data['RUL']
 
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.25, random_state=42)
-    print(len(x_train), len(x_test))
     # Train and test split of the data with remaining RUL y values. 75/25 split.
 #    train, test = data[data['id'] <= 163], data[data['id'] > 163]
 #
@@ -58,6 +58,9 @@ def data_visualisation():
 def train():
     model = GradientBoostingRegressor(max_depth=5, n_estimators=500, random_state=42)
     model.fit(x_train, y_train)
+    with open('saved/model.pck', 'wb') as file:
+            pck.dump(model, file)
+
 
     return model
 
@@ -76,14 +79,13 @@ def evaluate(model):
     print('MSE: ', mse)
     return y_pred
 
-
 def explain(model, instance=25, automated_locality=True, newMethod=True, kernel_width=10):
     chilliExplainer = CHILLI(model, x_train, y_train, x_test, y_test, features, automated_locality=automated_locality, newMethod=newMethod)
     explainer = chilliExplainer.build_explainer(mode='regression', kernel_width=kernel_width)
     exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = chilliExplainer.make_explanation(explainer, instance=instance, num_samples=1000)
 #    chilliExplainer.plot_explanation(35, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, 'RUL')
     chilliExplainer.interactive_perturbation_plot(instance, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, 'RUL')
-    with open('saved/explanation.pck', 'wb') as file:
+    with open(f'saved/explanation_{instance}.pck', 'wb') as file:
         pck.dump([exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error], file)
 
     return explanation_error
@@ -110,12 +112,12 @@ def make_linear_ensemble(x_test, y_pred):
 #    for f in files:
 #        os.remove(f)
     for i in tqdm(range(len(features))):
-#    for i in tqdm(range(2)):
+#    for i in tqdm(range(0,13)):
 
         if features[i] in discrete_features:
             K=1
         else:
-            K=50
+            K=10
 #    for i in tqdm(range(0,5)):
         feature = features[i]
         xdata = x_test[:, features.index(feature)]
@@ -128,7 +130,7 @@ def make_linear_ensemble(x_test, y_pred):
         w1, w2, w, MSE = LLR.calculateLocalModels()
         print('Calculating Distances')
 #
-        distance_weights = [1,1,0]
+        distance_weights = [0.1,1,0]
         D, xDs= LLR.compute_distance_matrix(w, MSE, distance_weights=distance_weights)
         print('Doing K-medoids-clustering')
         # Define number of medoids and perform K medoid clustering.
@@ -143,14 +145,14 @@ def make_linear_ensemble(x_test, y_pred):
         feature_ensembles[features[i]] = [clustered_data, linear_params, cluster_x_ranges]
 
         with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'wb') as file:
-            pck.dump(feature_ensembles, file)
+            pck.dump([feature_ensembles, ydata], file)
 
     return feature_ensembles
 
 
-def plot_ensembles(K=10, distance_weights=[1,1,0]):
+def plot_ensembles(K=20, distance_weights=[1,1,0]):
     with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb') as file:
-        feature_ensembles = pck.load(file)
+        feature_ensembles, y_pred = pck.load(file)
 
     fig, axes = plt.subplots(13, 2, figsize=(10, 28))
     plt.subplots_adjust(left=0.1,
@@ -180,15 +182,69 @@ def plot_ensembles(K=10, distance_weights=[1,1,0]):
 #            pass
     fig.savefig(f'Figures/Clustering/AllFeatureEnsembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pdf', bbox_inches='tight')
 
-train_model = False
-if train_model:
-    model = train()
-    with open('saved/model.pck', 'wb') as file:
-        pck.dump(model, file)
+
+
+def LLC_explanation(instance, distance_weights, K=20):
+    with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb') as file:
+        data = pck.load(file)
+    feature_ensembles, y_pred = data
+    explanation = []
+    instance_cluster_ranges = []
+    instance_clusters = []
+    for f, key in enumerate(feature_ensembles.keys()):
+        clustered_data, linear_params, cluster_x_ranges = feature_ensembles[key]
+        for i in range(len(clustered_data)):
+            w,b = linear_params[i]
+            if instance[f] >= cluster_x_ranges[i][0] and instance[f] <= cluster_x_ranges[i][1]:
+                explanation.append([w,b])
+                instance_clusters.append(clustered_data[i][0])
+                instance_cluster_ranges.append(cluster_x_ranges[i])
+                break
+    return explanation, instance_clusters, instance_cluster_ranges, y_pred
+
+def evaluate_LLC_explanation(full_x_test, full_y_pred, instance):
+    explanation, instance_clusters, instance_cluster_ranges, _ = LLC_explanation(full_x_test[instance], [1,1,0])
+    R = np.random.RandomState(42)
+    random_samples = R.randint(2, len(full_x_test), 2000)
+    x_test = full_x_test[random_samples]
+    y_pred = full_y_pred[random_samples]
+#    np.append(x_test, instance, axis=0)
+#    np.append(y_pred, full_y_pred[instance], axis=0)
+    y_preds = []
+    xs = []
+    for feature_num in range(len(explanation)):
+        cluster_y_preds = []
+        cluster_xs = []
+        for i in range(len(x_test)):
+            if instance_cluster_ranges[feature_num][0] <= x_test[i][feature_num] <= instance_cluster_ranges[feature_num][1]:
+                cluster_y_preds.append(y_pred[i])
+                cluster_xs.append(x_test[i][feature_num])
+        xs.append(cluster_xs)
+        y_preds.append(cluster_y_preds)
+
+    total_error = 0
+    for feature_num in range(len(explanation)):
+        instance_cluster_exp_ys = [(explanation[feature_num][0]*x+explanation[feature_num][1]) for x in xs[feature_num]]
+        total_error += mean_squared_error(y_preds[feature_num], instance_cluster_exp_ys, squared=False)
+    total_error /= len(explanation)
+    print(total_error)
+    return total_error
+
+
+#
+
+
+
+
+#model = train()
 with open('saved/model.pck', 'rb') as file:
     model = pck.load(file)
 
+
+
 y_pred = evaluate(model)
+#evaluate_LLC_explanation(x_test,y_pred, 100)
+
 make_linear_ensemble(x_test, y_pred)
 plot_ensembles()
 
@@ -197,29 +253,23 @@ kernel_widths = [0.1, 0.25, 0.5, 0.75, 1, 5]
 if sys.argv[1] == 'genexp':
     instances = random.sample(range(0, len(x_test)), 15)
 #    instances = [11198, 8640, 4571, 1955, 4335, 2851, 7010, 1965, 10964, 653]
-#    instances = instances[:3]
     kernel_widths = [5]
-    instances = [8646]
+    instances = [100]
     for kernel_width in kernel_widths:
         results = {instance: [] for instance in instances}
         for instance in instances:
 #            try:
                 print(f'-------------------{instance}-------------------')
-                for newMethod in [True, False]:
-                    for automated_locality in [True, False]:
-                        explanation_error = explain(model, instance=instance, automated_locality=automated_locality, newMethod=newMethod, kernel_width=kernel_width)
-                        results[instance].append(explanation_error)
-                        print(f'Automated locality: {automated_locality}, newMethod: {newMethod}, explanation error: {explanation_error}')
+                for newMethod in [True]:
+                    explanation_error = explain(model, instance=instance, automated_locality=True, newMethod=newMethod, kernel_width=kernel_width)
+                    results[instance].append(explanation_error)
+                    print(f'Automated locality: {False}, newMethod: {newMethod}, explanation error: {explanation_error}')
                 print('-----------------------------------------------\n')
 #            except:
 #                pass
 #        with open(f'saved/results_{kernel_width}.pck', 'wb') as file:
 #            pck.dump(results, file)
 #
-#explanation_error = explain(model, instance=1000, automated_locality=False, newMethod=True)
-
-#with open('saved/explanation.pck', 'rb') as file:
-#    exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = pck.load(file)
 
 def plot_results(kernel_widths=kernel_widths):
     colours = ['r', 'b', 'g', 'black']

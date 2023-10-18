@@ -33,21 +33,27 @@ class LocalLinearRegression():
 
     def euclideanDefine(self):
         ''' Defines a eculidea distance function and normalises the distance based on the maximum value in the dataset.'''
-        maxVal = max(self.x)
-        euclidean = lambda x1,x2: abs(x1-x2)/maxVal
+        maxX = max(self.x)
+        maxY = max(self.y)
+        minX = min(self.x)
+        minY = min(self.y)
+#        maxDistance = np.sqrt((maxX-minX)**2 + 0.25*(maxY-minY)**2)
+        maxDistance = np.sqrt((maxX-minX)**2)
+#        euclidean = lambda x1, x2, y1, y2: np.sqrt(((x1-x2))**2 + (0.25*(y1-y2))**2)/maxDistance
+        euclidean = lambda x1,x2: abs(x1-x2)/maxDistance
         return euclidean
 
     def timeDiff(self, x1,x2):
         ''' A time difference function which takes in datetime objects and returns the difference in days.'''
         return abs(x1-x2).days
 
-    def pointwiseDistance(self, X):
+    def pointwiseDistance(self, X, Y):
         ''' Calculates the distances between every point and every other point based on the defined distance function.
         Returns a matrix of all the distances which are normalised to range between 0 and 1.'''
         xDs = []
-        for x1 in X:
+        for x1, y1 in zip(X, Y):
             x1Ds = []
-            for x2 in X:
+            for x2, y2 in zip(X, Y):
                 x1Ds.append(self.dist_function(x1,x2))
             xDs.append(x1Ds)
         self.xDs = xDs
@@ -70,7 +76,7 @@ class LocalLinearRegression():
         MSE = []
 
 #        Calculate distances between all points so can reuse later.
-        self.pointwiseDistance(self.x)
+        self.pointwiseDistance(self.x, self.y)
         self.neighbourhods = []
 
         for i in tqdm(range(self.N)):
