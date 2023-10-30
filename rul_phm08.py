@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn import model_selection
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error
+from sklearn.cluster import AgglomerativeClustering
 import pickle as pck
 from chilli import CHILLI
 from LocalLinearRegression import LocalLinearRegression
@@ -16,9 +17,14 @@ from sklearn.model_selection import train_test_split
 import random
 import sys
 from pprint import pprint
+#import jenkspy
+from sklearn.neighbors import KernelDensity
+from scipy.signal import find_peaks
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly
 
 plt.rcParams['text.usetex'] = True
-
 
 def data_preprocessing():
     data = pd.read_csv('Data/PHM08/PHM08.csv')
@@ -29,11 +35,6 @@ def data_preprocessing():
     Y = data['RUL']
 
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.25, random_state=42)
-    # Train and test split of the data with remaining RUL y values. 75/25 split.
-#    train, test = data[data['id'] <= 163], data[data['id'] > 163]
-#
-#    y_train, y_test = train['RUL'], test['RUL']
-#    x_train, x_test = train.drop(['RUL', 'id'], axis=1), test.drop(['RUL','id'], axis=1)
     features = x_train.columns.tolist()
 
     scaler = StandardScaler()
@@ -45,7 +46,6 @@ def data_preprocessing():
     return x_train, x_test, y_train, y_test, features
 
 
-x_train, x_test, y_train, y_test, features = data_preprocessing()
 def data_visualisation():
     data = pd.read_csv('Data/PHM08/PHM08.csv')
     for col in data.columns:
@@ -60,26 +60,15 @@ def train():
     model.fit(x_train, y_train)
     with open('saved/model.pck', 'wb') as file:
             pck.dump(model, file)
-
-
     return model
 
 def evaluate(model):
     y_pred = model.predict(x_test)
     mse = mean_squared_error(y_test, y_pred)
-    fig, ax = plt.subplots(13, 2, figsize=(10, 24))
-    axes = fig.get_axes()
-    for i in range(len(x_test[0])):
-#        for i in data['id'].unique():
-        col_xs = x_test[:, i]
-        axes[i].scatter(col_xs, y_test, color='blue', alpha=0.5,s=1)
-        axes[i].scatter(col_xs, y_pred, color='green', alpha=0.5,s=1)
-        axes[i].set_ylabel(features[i])
-    fig.savefig('Figures/PHM08/predictions.pdf')
     print('MSE: ', mse)
     return y_pred
 
-def explain(model, instance=25, automated_locality=True, newMethod=True, kernel_width=10):
+def chilli_explain(model, instance=25, automated_locality=True, newMethod=True, kernel_width=10):
     chilliExplainer = CHILLI(model, x_train, y_train, x_test, y_test, features, automated_locality=automated_locality, newMethod=newMethod)
     explainer = chilliExplainer.build_explainer(mode='regression', kernel_width=kernel_width)
     exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = chilliExplainer.make_explanation(explainer, instance=instance, num_samples=1000)
@@ -90,67 +79,7 @@ def explain(model, instance=25, automated_locality=True, newMethod=True, kernel_
 
     return explanation_error
 
-def plot_single_perturbation():
-    with open('explanation.pck', 'rb') as file:
-        exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error = pck.load(file)
-    perturbations = np.array(perturbations)
-    plt.scatter(perturbations[:, features.index('s15')], model_perturbation_predictions, s=5)
-    plt.show()
-
-def make_linear_ensemble(x_test, y_pred):
-
-    feature_ensembles = {}
-    R = np.random.RandomState(42)
-    random_samples = R.randint(2, len(x_test), 2000)
-    x_test = x_test[random_samples]
-    y_pred = y_pred[random_samples]
-
-
-
-    discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
-#    files = glob.glob(f'Figures/Clustering/OptimisedClusters/*')
-#    for f in files:
-#        os.remove(f)
-    for i in tqdm(range(len(features))):
-#    for i in tqdm(range(0,13)):
-
-        if features[i] in discrete_features:
-            K=1
-        else:
-            K=10
-#    for i in tqdm(range(0,5)):
-        feature = features[i]
-        xdata = x_test[:, features.index(feature)]
-        ydata = y_pred
-
-
-        print('Performing Local Linear Regression')
-        # Perform LocalLinear regression on fetched data
-        LLR = LocalLinearRegression(xdata,ydata, dist_function='Euclidean')
-        w1, w2, w, MSE = LLR.calculateLocalModels()
-        print('Calculating Distances')
-#
-        distance_weights = [0.1,1,0]
-        D, xDs= LLR.compute_distance_matrix(w, MSE, distance_weights=distance_weights)
-        print('Doing K-medoids-clustering')
-        # Define number of medoids and perform K medoid clustering.
-
-        LC = LinearClustering(xdata, ydata, D, xDs, features[i], K)
-
-        clustered_data, medoids, linear_params, clustering_cost, fig = LC.adapted_clustering()
-        fig.savefig(f'Figures/Clustering/OptimisedClusters/{features[i]}_final_{len(clustered_data)}.pdf')
-
-
-        cluster_x_ranges = [[min(clustered_data[i][0]), max(clustered_data[i][0])] for i in range(len(clustered_data))]
-        feature_ensembles[features[i]] = [clustered_data, linear_params, cluster_x_ranges]
-
-        with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'wb') as file:
-            pck.dump([feature_ensembles, ydata], file)
-
-    return feature_ensembles
-
-
-def plot_ensembles(K=20, distance_weights=[1,1,0]):
+def plot_ensembles(K=20, distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}):
     with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb') as file:
         feature_ensembles, y_pred = pck.load(file)
 
@@ -162,7 +91,7 @@ def plot_ensembles(K=20, distance_weights=[1,1,0]):
                     wspace=0.2,
                     hspace=0.4)
     ax = fig.get_axes()
-    colours = [np.random.rand(1,3) for i in range(20)]
+    colours = [np.random.rand(1,3) for i in range(35)]
 
     for f, key in enumerate(feature_ensembles.keys()):
         clustered_data, linear_params, cluster_x_ranges = feature_ensembles[key]
@@ -170,10 +99,10 @@ def plot_ensembles(K=20, distance_weights=[1,1,0]):
             w,b = linear_params[i]
 #            colours.append(colour)
             colour = colours[i]
-            ax[f].scatter(clustered_data[i][0], clustered_data[i][1], s=1, marker='o', c=colour, label='_nolegend_')
+            ax[f].scatter(clustered_data[i][0], clustered_data[i][1], s=0.5, marker='o', c=colour, label='_nolegend_')
             cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
             ax[f].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
-            ax[f].plot(cluster_range, w*cluster_range+b, linewidth=1, c=colour)
+            ax[f].plot(cluster_range, w*cluster_range+b, linewidth=1, c='black')
 
         ax[f].set_title(key)
 #        try:
@@ -183,95 +112,7 @@ def plot_ensembles(K=20, distance_weights=[1,1,0]):
     fig.savefig(f'Figures/Clustering/AllFeatureEnsembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pdf', bbox_inches='tight')
 
 
-
-def LLC_explanation(instance, distance_weights, K=20):
-    with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb') as file:
-        data = pck.load(file)
-    feature_ensembles, y_pred = data
-    explanation = []
-    instance_cluster_ranges = []
-    instance_clusters = []
-    for f, key in enumerate(feature_ensembles.keys()):
-        clustered_data, linear_params, cluster_x_ranges = feature_ensembles[key]
-        for i in range(len(clustered_data)):
-            w,b = linear_params[i]
-            if instance[f] >= cluster_x_ranges[i][0] and instance[f] <= cluster_x_ranges[i][1]:
-                explanation.append([w,b])
-                instance_clusters.append(clustered_data[i][0])
-                instance_cluster_ranges.append(cluster_x_ranges[i])
-                break
-    return explanation, instance_clusters, instance_cluster_ranges, y_pred
-
-def evaluate_LLC_explanation(full_x_test, full_y_pred, instance):
-    explanation, instance_clusters, instance_cluster_ranges, _ = LLC_explanation(full_x_test[instance], [1,1,0])
-    R = np.random.RandomState(42)
-    random_samples = R.randint(2, len(full_x_test), 2000)
-    x_test = full_x_test[random_samples]
-    y_pred = full_y_pred[random_samples]
-#    np.append(x_test, instance, axis=0)
-#    np.append(y_pred, full_y_pred[instance], axis=0)
-    y_preds = []
-    xs = []
-    for feature_num in range(len(explanation)):
-        cluster_y_preds = []
-        cluster_xs = []
-        for i in range(len(x_test)):
-            if instance_cluster_ranges[feature_num][0] <= x_test[i][feature_num] <= instance_cluster_ranges[feature_num][1]:
-                cluster_y_preds.append(y_pred[i])
-                cluster_xs.append(x_test[i][feature_num])
-        xs.append(cluster_xs)
-        y_preds.append(cluster_y_preds)
-
-    total_error = 0
-    for feature_num in range(len(explanation)):
-        instance_cluster_exp_ys = [(explanation[feature_num][0]*x+explanation[feature_num][1]) for x in xs[feature_num]]
-        total_error += mean_squared_error(y_preds[feature_num], instance_cluster_exp_ys, squared=False)
-    total_error /= len(explanation)
-    print(total_error)
-    return total_error
-
-
-#
-
-
-
-
-#model = train()
-with open('saved/model.pck', 'rb') as file:
-    model = pck.load(file)
-
-
-
-y_pred = evaluate(model)
-#evaluate_LLC_explanation(x_test,y_pred, 100)
-
-make_linear_ensemble(x_test, y_pred)
-plot_ensembles()
-
-kernel_widths = [0.1, 0.25, 0.5, 0.75, 1, 5]
-
-if sys.argv[1] == 'genexp':
-    instances = random.sample(range(0, len(x_test)), 15)
-#    instances = [11198, 8640, 4571, 1955, 4335, 2851, 7010, 1965, 10964, 653]
-    kernel_widths = [5]
-    instances = [100]
-    for kernel_width in kernel_widths:
-        results = {instance: [] for instance in instances}
-        for instance in instances:
-#            try:
-                print(f'-------------------{instance}-------------------')
-                for newMethod in [True]:
-                    explanation_error = explain(model, instance=instance, automated_locality=True, newMethod=newMethod, kernel_width=kernel_width)
-                    results[instance].append(explanation_error)
-                    print(f'Automated locality: {False}, newMethod: {newMethod}, explanation error: {explanation_error}')
-                print('-----------------------------------------------\n')
-#            except:
-#                pass
-#        with open(f'saved/results_{kernel_width}.pck', 'wb') as file:
-#            pck.dump(results, file)
-#
-
-def plot_results(kernel_widths=kernel_widths):
+def plot_results(kernel_widths=None):
     colours = ['r', 'b', 'g', 'black']
     fig, axes = plt.subplots(2, 3, figsize=(15, 11))
     plt.subplots_adjust(hspace=0.4)
@@ -307,7 +148,238 @@ def plot_results(kernel_widths=kernel_widths):
     fig.legend(['CHILLI with automated locality', 'CHILLI without automated locality', 'LIME'],loc='center', bbox_to_anchor=(0.5,0.98), ncols=3)
     fig.savefig('Figures/Results.pdf', bbox_inches='tight')
 
-if sys.argv[1] == 'plot':
-    print('plotting')
-    plot_results()
+
+
+
+def linear_clustering(xdata, ydata, feature, distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
+, K=20):
+    print('Performing Local Linear Regression')
+    # Perform LocalLinear regression on fetched data
+    print(type(xdata))
+    LLR = LocalLinearRegression(xdata,ydata, dist_function='Euclidean')
+    w1, w2, w = LLR.calculateLocalModels()
+    print('Calculating Distances')
+    #
+
+    D, xDs= LLR.compute_distance_matrix(w, distance_weights=distance_weights)
+    print('Doing K-medoids-clustering')
+    # Define number of medoids and perform K medoid clustering.
+
+    LC = LinearClustering(xdata, ydata, D, xDs, feature, K,
+                          sparsity_threshold = 0.01,
+                          coverage_threshold=0.01*abs(max(xdata)-min(xdata)),
+                          gaps_threshold=100,
+                          similarity_threshold=0.1)
+
+
+
+    clustered_data, medoids, linear_params, clustering_cost, fig = LC.adapted_clustering()
+#    fig.savefig(f'Figures/Clustering/OptimisedClusters/{features[i]}_final_{len(clustered_data)}.pdf')
+
+    return clustered_data, medoids, linear_params, clustering_cost
+
+def make_linear_ensemble(x_test, y_pred):
+
+    feature_ensembles = {}
+    R = np.random.RandomState(42)
+    random_samples = R.randint(2, len(x_test), 2000)
+    x_test = x_test[random_samples]
+    y_pred = y_pred[random_samples]
+
+
+
+    discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
+    #    files = glob.glob(f'Figures/Clustering/OptimisedClusters/*')
+    #    for f in files:
+    #        os.remove(f)
+    distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
+    for i in tqdm(range(len(features))):
+        #    for i in tqdm(range(1,18)):
+        if features[i] in discrete_features:
+            K=1
+        else:
+            K=20
+        #    for i in tqdm(range(0,5)):
+        feature = features[i]
+        xdata = x_test[:, features.index(feature)]
+        print(xdata)
+        ydata = y_pred
+
+
+        clustered_data, medoids, linear_params, clustering_cost = linear_clustering(xdata, y_pred, feature, distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}, K=K)
+        cluster_x_ranges = [[min(clustered_data[i][0]), max(clustered_data[i][0])] for i in range(len(clustered_data))]
+        feature_ensembles[features[i]] = [clustered_data, linear_params, cluster_x_ranges]
+
+        with open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'wb') as file:
+            pck.dump([feature_ensembles, ydata], file)
+
+    return feature_ensembles
+
+
+def feature_space_clustering(xdata, ydata):
+    data = xdata
+    # Create a kernel density estimation model
+    kde = KernelDensity(bandwidth=0.1*max(xdata))  # You can adjust the bandwidth
+    kde.fit(np.array(data).reshape(-1, 1))
+
+    # Create a range of data points for evaluation
+    x_eval = np.linspace(min(data), max(data), 1000)
+    log_dens = kde.score_samples(x_eval.reshape(-1, 1))
+    dens = np.exp(log_dens)
+
+    # Find local maxima in the density curve
+    peaks, _ = find_peaks(dens)
+    cluster_centers = x_eval[peaks]
+
+    # Assign data points to clusters based on proximity to cluster centers
+    print(len(cluster_centers))
+    cluster_assignments = []
+    for data_point in data:
+        distances = np.abs(cluster_centers - data_point)
+        nearest_cluster = np.argmin(distances)
+        cluster_assignments.append(nearest_cluster)
+
+    return cluster_assignments
+
+def main():
+        #model = train()
+    with open('saved/model.pck', 'rb') as file:
+        model = pck.load(file)
+
+    y_pred = evaluate(model)
+#    evaluate_LLC_explanation(x_test,y_pred, 100)
+
+    make_linear_ensemble(x_test, y_pred)
+    plot_ensembles()
+
+    kernel_widths = [0.1, 0.25, 0.5, 0.75, 1, 5]
+
+    if sys.argv[1] == 'genexp':
+        instances = random.sample(range(0, len(x_test)), 15)
+#    instances = [11198, 8640, 4571, 1955, 4335, 2851, 7010, 1965, 10964, 653]
+        kernel_widths = [5]
+        instances = [100]
+        for kernel_width in kernel_widths:
+            results = {instance: [] for instance in instances}
+            for instance in instances:
+#            try:
+                    print(f'-------------------{instance}-------------------')
+                    for newMethod in [True]:
+                        explanation_error = explain(model, instance=instance, automated_locality=True, newMethod=newMethod, kernel_width=kernel_width)
+                        results[instance].append(explanation_error)
+                        print(f'Automated locality: {False}, newMethod: {newMethod}, explanation error: {explanation_error}')
+                    print('-----------------------------------------------\n')
+#            except:
+#                pass
+#        with open(f'saved/results_{kernel_width}.pck', 'wb') as file:
+#            pck.dump(results, file)
+    if sys.argv[1] == 'plot':
+        print('plotting')
+        plot_results()
+#
+
+def plot_final_clustering(clustered_data, linear_params):
+#    cost = self.calculate_clustering_cost(clustered_data)
+    fig = go.Figure()
+    for cluster in range(len(clustered_data)):
+        colour = np.random.rand(3)
+        colour = plotly.colors.label_rgb((colour[0]*255, colour[1]*255, colour[2]*255))
+        xs, ys = clustered_data[cluster]
+        w, b = linear_params[cluster]
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode='markers', marker=dict(size=4, color=colour)))
+        cluster_range = np.linspace(min(xs), max(xs), 100)
+        fig.add_trace(go.Scatter(x=cluster_range, y=w*cluster_range+b, mode='lines', line=dict(color=colour, width=5)))
+#    fig.update_layout(title=f'K-Medoids clustering of LLR models into {len(clustered_data)} clusters \n  Clustering Cost: {cost:.2f}')
+    return fig
+
+def plot_all_clustering(feature_ensembles):
+    num_rows=int(np.ceil(len(features)/4))
+    num_cols=4
+
+    fig = make_subplots(rows=num_rows, cols=num_cols, column_widths=[0.25, 0.25, 0.25, 0.25], row_heights =[1/num_rows for row in range(num_rows)], specs = [[{}, {}, {}, {}] for i in range(num_rows)], subplot_titles=features, horizontal_spacing=0.05, vertical_spacing=0.05)
+
+    axes = [[row, col] for row in range(1,num_rows+1) for col in range(1,num_cols+1)]
+
+    for feature, value in feature_ensembles.items():
+        i = features.index(feature)
+        clustered_data, linear_params = value
+#        if i==0:
+#            showlegend=True
+#        else:
+        showlegend=False
+        for cluster, params in zip(clustered_data, linear_params):
+            colour = np.random.rand(3)
+            colour = plotly.colors.label_rgb((colour[0]*255, colour[1]*255, colour[2]*255))
+            fig.add_trace(go.Scatter(x=cluster[0],y=cluster[1],
+                                     mode='markers', marker = dict(size=3, opacity=0.9, color=colour),
+                                     showlegend=showlegend),
+                          row=axes[i][0], col=axes[i][1])
+
+            fig.add_trace(go.Scatter(x=cluster[0],y=[params[0]*x+params[1] for x in cluster[0]],
+                                     mode='lines', marker = dict(size=3, opacity=0.9, color=colour),
+                                     showlegend=showlegend),
+                          row=axes[i][0], col=axes[i][1])
+
+    fig.update_layout(legend=dict(yanchor="top", y=1.1, xanchor="right"),
+                      height=350*num_rows, )
+    fig.write_html(f'Figures/PHM08/all_feature_clustering.html', auto_open=False)
+
+def multi_layer_clustering(x_test):
+
+    with open('saved/model.pck', 'rb') as file:
+        model = pck.load(file)
+    y_pred = evaluate(model)
+
+    R = np.random.RandomState(42)
+    random_samples = R.randint(2, len(x_test), 5000)
+    x_test = x_test[random_samples]
+    y_pred = y_pred[random_samples]
+    feature_ensembles = {feature: [] for feature in features}
+
+    discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
+    # XDs, WDs, neighbourhoodDs
+    distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
+    fig, ax = plt.subplots(13, 2, figsize=(10, 24))
+    axes = fig.get_axes()
+    for i in range(len(features)):
+        print(f'--------{features[i]}---------')
+        all_feature_clusters = []
+        all_feature_linear_params = []
+        feature_xs = x_test[:, i]
+        if features[i] not in discrete_features:
+            cluster_assignments = feature_space_clustering(feature_xs, y_pred)
+            K=5
+        else:
+            cluster_assignments = np.zeros(len(feature_xs))
+            K=1
+
+#            print(feature_xs)
+        for super_cluster in np.unique(cluster_assignments):
+            print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
+            super_cluster_x_indices = np.array(np.argwhere(cluster_assignments == super_cluster)).flatten()
+            super_cluster_xs = feature_xs[super_cluster_x_indices]
+            super_cluster_y_pred = y_pred[super_cluster_x_indices]
+
+            clustered_data, medoids, linear_params, clustering_cost = linear_clustering(super_cluster_xs, super_cluster_y_pred, features[i], distance_weights, K=K)
+            [all_feature_clusters.append(cluster) for cluster in clustered_data]
+            [all_feature_linear_params.append(linear_param) for linear_param in linear_params]
+
+        fig = plot_final_clustering(all_feature_clusters, all_feature_linear_params)
+        fig.write_html(f'Figures/Clustering/OptimisedClusters/{features[i]}_final_{K}.html')
+        feature_ensembles[features[i]] = [all_feature_clusters, all_feature_linear_params]
+        with open(f'saved/feature_ensembles.pck', 'wb') as file:
+            pck.dump(feature_ensembles, file)
+
+if __name__ == '__main__':
+    x_train, x_test, y_train, y_test, features = data_preprocessing()
+    #    main()
+#    multi_layer_clustering(x_test)
+    with open('saved/feature_ensembles.pck', 'rb') as file:
+        feature_ensembles = pck.load(file)
+    plot_all_clustering(feature_ensembles)
+
+
+
+
+
 

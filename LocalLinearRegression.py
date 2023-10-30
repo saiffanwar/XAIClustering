@@ -77,13 +77,13 @@ class LocalLinearRegression():
 
 #        Calculate distances between all points so can reuse later.
         self.pointwiseDistance(self.x, self.y)
-        self.neighbourhods = []
-
+        self.neighbourhoods = []
         for i in tqdm(range(self.N)):
             check = [self.xDs_norm[i][j]<0.05 for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
-            self.neighbourhods.append(localxdata)
+
+            self.neighbourhoods.append(len(localxdata))
             if i ==0:
                 self.first_point_neighbours = [localxdata, localydata]
             X = np.array([localxdata, np.ones(len(localxdata))]).T
@@ -103,7 +103,6 @@ class LocalLinearRegression():
 #                axes.legend(['All Data', 'Local Data', 'Selected Point', 'Local Model'])
 #                plt.plot(xrange, ys, c='green', linewidth=5)
 #                plt.savefig('Figures/LocalModels/housingLinearRegression{}.png'.format(i))
-            MSE.append(mean_squared_error(localydata, np.dot(X, wlocal)))
 
 #            for circular regression uncomment the following:
 
@@ -114,51 +113,33 @@ class LocalLinearRegression():
 #            w.append([m, c])
 #            MSE.append(mean_squared_error(localydata, preds))
 
-        return w1, w2, w, MSE
+        return w1, w2, w
 
 
-    def compute_distance_matrix(self, w, MSE, distance_weights= [1,0,0], instance=None):
+    def compute_distance_matrix(self, w, distance_weights= {'x': 1, 'w': 1, 'neighbourhood': 1}, instance=None):
         ''' Computes a distance matrix between all points for a distance function which includes the raw distance values,
         the parameters and error of the Local Linear Regression models for the respective points.
         This will be used as the distance matrix for any clustering algorithms. '''
 
-        wDs, mseDs, model_similarities = [], [], []
+        wDs, mseDs, neighbourhoodDs = [], [], []
 
         euclidean = lambda l1, l2: sum((p-q)**2 for p, q in zip(l1, l2)) ** .5
         print('Computing Distance Matrix...')
         if instance == None:
             D = np.zeros((self.N,self.N))
-            [(wDs.append(euclidean(w[i], w[j])), mseDs.append(abs(MSE[i]-MSE[j]))) for i in tqdm(range(self.N)) for j in range(self.N)]
+            [(wDs.append(euclidean(w[i], w[j])), neighbourhoodDs.append(abs(self.neighbourhoods[i]-self.neighbourhoods[j]))) for i in tqdm(range(self.N)) for j in range(self.N)]
             normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
 
             maxWds, minWds = np.max(wDs), np.min(wDs)
             wDs_norm = np.array(list(map(lambda x: normalise(maxWds, minWds, x), wDs))).reshape(self.N, self.N)
 
-            maxMses, minMses = np.max(mseDs), np.min(mseDs)
-            mseDs_norm = np.array(list(map(lambda x: normalise(maxMses, minMses, x), mseDs))).reshape(self.N, self.N)
+            maxNeighbourhood, minNeighbourhood = np.max(self.neighbourhoods), np.min(self.neighbourhoods)
+            neighbourhood_norm = np.array(list(map(lambda x: normalise(maxNeighbourhood, minNeighbourhood, x), neighbourhoodDs))).reshape(self.N, self.N)
 
             for i in range(self.N):
                 for j in range(self.N):
-                    # print(np.linalg.norm(w[i]-w[j]), MSE[i]-MSE[j], self.x[i]-self.x[j])
-#                distance = wDs_norm[i,j] + mseDs_norm[i,j] + 0.25*self.xDs_norm[i,j]
-                    distance = distance_weights[0]*self.xDs_norm[i,j] + distance_weights[1]*wDs_norm[i,j] +  distance_weights[2]*mseDs_norm[i,j]
+                    distance = distance_weights['x']*self.xDs_norm[i,j] + distance_weights['w']*wDs_norm[i,j] +  distance_weights['neighbourhood']*neighbourhood_norm[i,j]
                     D[i,j] = distance
-        else:
-            D = np.zeros(self.N)
-            [(wDs.append(euclidean(w[instance], w[j])), mseDs.append(abs(MSE[instance]-MSE[j]))) for j in range(self.N)]
-            normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
-
-            maxWds, minWds = np.max(wDs), np.min(wDs)
-            wDs_norm = np.array(list(map(lambda x: normalise(maxWds, minWds, x), wDs))).reshape(self.N)
-
-            maxMses, minMses = np.max(mseDs), np.min(mseDs)
-            mseDs_norm = np.array(list(map(lambda x: normalise(maxMses, minMses, x), mseDs))).reshape(self.N)
-
-            for j in range(self.N):
-                # print(np.linalg.norm(w[i]-w[j]), MSE[i]-MSE[j], self.x[i]-self.x[j])
-#                distance = wDs_norm[i,j] + mseDs_norm[i,j] + 0.25*self.xDs_norm[i,j]
-                distance = distance_weights[0]*self.xDs_norm[instance, j] + distance_weights[1]*wDs_norm[j] +  distance_weights[2]*mseDs_norm[j]
-                D[j] = distance
 
 #        with open('saved/distance_matrix.pck', 'wb') as file:
 #            pck.dump([D, self.xDs_norm], file)
