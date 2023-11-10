@@ -10,7 +10,7 @@ from pprint import pprint
 
 class CHILLI():
 
-    def __init__(self, model, x_train, y_train, x_test, y_test, features, newMethod=True, automated_locality=True):
+    def __init__(self, model, x_train, y_train, x_test, y_test, features, newMethod=True, automated_locality=False):
         self.model = model
         # These should be scaled numpy arrays
         self.x_train = x_train
@@ -25,33 +25,26 @@ class CHILLI():
 
     def build_explainer(self, categorical_features=None, kernel_width=10, mode='regression'):
 #        The explainer is built herem on the training data with the features and type of model specified.
-#        nptrain = np.array(self.x_train)
-
         y_hat_test = self.model.predict(self.x_test)
-
-
         explainer = lime_tabular.LimeTabularExplainer(self.x_train, test_data=self.x_test, test_labels=self.y_test, test_predictions=y_hat_test, automated_locality=self.automated_locality, feature_names=self.features, categorical_features=categorical_features, mode=mode, verbose=True, kernel_width=kernel_width)
         return explainer
-#    def preidctor_function(self, testData):
-#        predict_proba = self.model.predict_proba(testData)
-#        return
-
 
     def make_explanation(self, explainer, instance, num_features=25, num_samples=1000):
+        ground_truth = self.y_test[instance]
         predictor = self.model.predict
-#        nptest = np.array(self.x_test)
-        nptest = self.x_test
-        exp, local_model, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(nptest[instance], instance_num=instance, predict_fn=predictor, num_features=num_features, num_samples=num_samples, newMethod=self.newMethod)
-#        prediction = predictor(nptest[instance].reshape(1,-1))
+        instance_prediction = predictor(self.x_test[instance].reshape(1,-1))[0]
+        exp, local_model, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(self.x_test[instance], instance_num=instance, predict_fn=predictor, num_features=num_features, num_samples=num_samples, newMethod=self.newMethod)
         self.local_model = local_model
-#        model_perturbation_predictions = [p[1] for p in model_perturbation_predictions]
+        exp_instance_prediction = local_model.predict(self.x_test[instance].reshape(1,-1))[0]
+
         explanation_error = mean_squared_error(model_perturbation_predictions, exp_perturbation_predictions, squared=False)
         exp.intercept = self.local_model.intercept_
 
-        return exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error
-
-
-
+        print('\n-----------------------')
+        print(f'Ground Truth: {ground_truth}')
+        print(f'Model Prediction: { instance_prediction }')
+        print(f'CHILLI prediction: { exp_instance_prediction }')
+        return exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error, instance_prediction, exp_instance_prediction
 
     def plot_explanation(self, instance, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature):
         exp_list = exp.as_list()

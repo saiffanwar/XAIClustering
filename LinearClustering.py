@@ -62,6 +62,7 @@ class LinearClustering():
         self.similarity_threshold = similarity_threshold
         self.coverage_threshold = coverage_threshold
         self.gaps_threshold = gaps_threshold
+        self.plotting=False
 
         # Clear folder for figures to show evolution of clustering.
         if os.path.isdir(f'Figures/Clustering/OptimisedClusters/{self.feature_name}'):
@@ -76,19 +77,13 @@ class LinearClustering():
     def find_gaps(self, x=None):
         '''Find gaps in the data and do not cluster across these gaps'''
         x = np.sort(x)
-        if len(np.unique(x)) > 1 and False:
+        if len(np.unique(x)) > 1:
             all_x_differences = [x[i+1]-x[i] for i in range(len(x)-1)]
-#            all_x_differences = [i for i in all_x_differences if i > 0]
             median_x_difference = stat.mean(all_x_differences)
-            print(median_x_difference, max(all_x_differences))
-#            all_x_differences = np.sort(all_x_differences)
-#            if all_x_differences[-1] > 10*all_x_differences[-2]
             gap_indices = [i for i in range(len(all_x_differences)) if all_x_differences[i] > self.gaps_threshold*median_x_difference]
             gap_ranges = [[x[i], x[i+1]] for i in gap_indices]
         else:
             gap_ranges = []
-#        if x == np.sort(self.x):
-#            self.gaps = gap_ranges
         return gap_ranges
 
     def pick_medoids(self, K):
@@ -172,16 +167,10 @@ class LinearClustering():
         accept_clustering = True
         if accept_clustering == True:
             changes = [True]
-#            pre_verification_clustering = None
-#            while pre_verification_clustering != clustered_data:
-#            pre_verify_k = len(clustered_data)
             while any(changes):
                 pre_verification_clustering = clustered_data
                 clustered_data, medoids, linear_params, clustering_cost, changes = self.verify_clustering(clustered_data)
-#            while len(clustered_data) < pre_verify_k:
-#                pre_verify_k = len(clustered_data)
-#                clustered_data, medoids, linear_params, clustering_cost = self.verify_clustering(clustered_data, linear_params, K)
-            print(f'Cost After verifying: {clustering_cost}')
+
             self.clustered_data = deepcopy(clustered_data)
             self.medoids = deepcopy(medoids)
             self.linear_params = deepcopy(linear_params)
@@ -211,6 +200,8 @@ class LinearClustering():
     def verify_clustering(self, clustered_data):
 
         changes = []
+        clustered_data = self.order_clusters(clustered_data)
+
         if len(clustered_data) != 1:
             pre_clustered_data = deepcopy(clustered_data)
             clustered_data = self.check_cluster_gaps(clustered_data)
@@ -220,25 +211,27 @@ class LinearClustering():
             else:
                 changes.append(False)
             _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
             fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_separating_gaps_{time.time()}.pdf', bbox_inches='tight')
 
 #        print('Post Gaps Check K = ', len(clustered_data))
 #
-        if len(clustered_data) != 1:
-            pre_clustered_data = deepcopy(clustered_data)
-            clustered_data = self.check_cluster_containments(clustered_data)
-            # Check if satisfying this constraint has changed the clustering.
-            if pre_clustered_data != clustered_data:
-                changes.append(True)
-            else:
-                changes.append(False)
-
-            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
-            fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_merging_{time.time()}.pdf', bbox_inches='tight')
-
-#        print('Post containments Check K = ', len(clustered_data))
+#        if len(clustered_data) != 1:
+#            pre_clustered_data = deepcopy(clustered_data)
+#            clustered_data = self.check_cluster_containments(clustered_data)
+#            # Check if satisfying this constraint has changed the clustering.
+#            if pre_clustered_data != clustered_data:
+#                changes.append(True)
+#            else:
+#                changes.append(False)
+#
+#            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+#        if self.plotting == True:
+#            fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
+#            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_merging_{time.time()}.pdf', bbox_inches='tight')
+#
+##        print('Post containments Check K = ', len(clustered_data))
 #
         if len(clustered_data) != 1:
             # Check if neighbouring clusters overlap.
@@ -250,10 +243,11 @@ class LinearClustering():
             else:
                 changes.append(False)
             _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
             fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_checking_overlaps_{time.time()}.pdf', bbox_inches='tight')
 
-            print('Post overlap Check K = ', len(clustered_data))
+#            print('Post overlap Check K = ', len(clustered_data))
 
         if len(clustered_data) != 1:
         # Check size of clusters. If 10x smaller than neighbouring clusters, merge them.
@@ -265,10 +259,10 @@ class LinearClustering():
             else:
                 changes.append(False)
             _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
             fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_checking_sparsity_{time.time()}.pdf', bbox_inches='tight')
 
-            print('Post sparsity & coverage Check K = ', len(clustered_data))
 
         if len(clustered_data) != 1 and False:
         # Check if parameters of neighbouring clusters models are similar. If they are similar, merge them.
@@ -280,24 +274,16 @@ class LinearClustering():
             else:
                 changes.append(False)
             _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, None)
             fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_similarity_merge_{time.time()}.pdf', bbox_inches='tight')
 
 #        print('Post similarity Check K = ', len(clustered_data))
 
-#        if len(clustered_data) != 1:
-#            clustered_data = self.check_cluster_coverage(clustered_data)
-#            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
-#            fig = self.plotMedoids(clustered_data, None, linear_params, None)
-#            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_checking_covering_{time.time()}.pdf', bbox_inches='tight')
-            # Check if parameters of neighbouring clusters models are similar. If they are similar, merge them.
         clustering_cost = self.calculate_clustering_cost(clustered_data)
 
         _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
         medoids = self.find_medoids(clustered_data)
-#        medoids = [random.choice(clustered_data[i]) for i in range(len(clustered_data))]
-#        medoids = self.pick_medoids(len(clustered_data))
-
 
         return clustered_data, medoids, linear_params, clustering_cost, changes
 
@@ -319,27 +305,6 @@ class LinearClustering():
         clustering is favoured. This function is called repeatedly for a specified number of iterations.
         '''
 
-#        K = len(clustered_data)
-#        best_cost = None
-#        for k in range(K):
-#            for other_point, point in tqdm(enumerate(self.x)):
-#                if other_point not in medoids:
-#                    new_medoids = deepcopy(medoids)
-#                    new_medoids[k] = other_point
-#                    new_clustered_data = self.gen_clustering(self.D, new_medoids)
-#                    _,new_linear_params, new_clustering_cost = self.calc_cluster_models(self.x, self.y, new_clustered_data)
-#                    if best_cost is None:
-#                        best_cost = new_clustering_cost
-#                        best_medoids = new_medoids
-#                    if new_clustering_cost < best_cost:
-#                        print(f'New clustering cost: {new_clustering_cost}')
-#                        best_cost = new_clustering_cost
-#                        best_medoids = new_medoids
-#
-#
-#        clustered_data = self.gen_clustering(self.D, best_medoids)
-#        _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
-#        recluster = False
         random_cluster = random.choice(np.arange(0,K,1))
         while len(clustered_data[random_cluster]) == 1:
             random_cluster = random.choice(np.arange(0,K,1))
@@ -395,26 +360,8 @@ class LinearClustering():
 
                     for separated_cluster in separated_clusters:
                         new_clustering.append([clustered_data[cluster_num][x] for x in separated_cluster])
-
-
-#                    print(cluster_gaps)
-#                    separated_clusters = [[],[]]
-#                    for i in range(len(cluster_gaps)):
-#                        for x in tqdm(range(len(cluster_xs))):
-#                            if cluster_xs[x] < cluster_gaps[i][0]:
-#                                separated_clusters[0].append(clustered_data[cluster_num][x])
-#                            elif cluster_xs[x] > cluster_gaps[i][1]:
-#                                separated_clusters[1].append(clustered_data[cluster_num][x])
-#                        new_clustering.append(separated_clusters[0])
-#                        new_clustering.append(separated_clusters[1])
-
                 else:
                     new_clustering.append(clustered_data[cluster_num])
-#                separated_clusters = [[clustered_data[cluster_num][j] for j in range(len(cluster_xs)) if i[0]<= cluster_xs[j] <= i[1]] for i in cluster_gaps]
-#                for i in range(len(cluster_gaps)):
-#                    for j in range(len(cluster_xs)):
-#                        if cluster_xs[j] < cluster_gaps[i][1]:
-#                            separated_clusters[i].append(clustered_data[cluster_num][j])
             else:
                 new_clustering.append(clustered_data[cluster_num])
 
@@ -526,17 +473,6 @@ class LinearClustering():
         Utility function which checks for overlap between clusters or (child) clusters entirely contained
         within other (parent) clusters. If there is overlap, the parent cluster adopts the child cluster.
         '''
-
-#        cluster_datapoints = self.cluster_indices_to_datapoints(clustered_data)
-#        cluster_ranges = [[min(cluster_datapoints[i][0]), max(cluster_datapoints[i][0])] for i in range(len(cluster_datapoints))]
-#        contained_clusters, overlapping_clusters = [], []
-#        for cluster1, range1 in enumerate(cluster_ranges):
-#            for cluster2, range2 in enumerate(cluster_ranges):
-#                if cluster1 != cluster2:
-#                    if range1[0] <= range2[0] <= range1[1] or range1[0] <= range2[1] <= range1[1]:
-#                        if range1[0] <= range2[0] <= range1[1] and range1[0] <= range2[1] <= range1[1]:
-#                            #                            print(f'Cluster {cluster2} is contained within Cluster {cluster1}.')
-#                            contained_clusters.append([cluster1, cluster2])
 #
         contained_clusters = []
 

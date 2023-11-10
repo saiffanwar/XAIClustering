@@ -679,7 +679,7 @@ class LimeTabularExplainer(object):
 
 
             K=10
-            distance_weights=[0.5,1,0]
+            distance_weights=[1,1,0]
 
             self.feature_ensembles = pck.load(open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb'))
             cluster_ranges = [self.feature_ensembles[f][2] for f in features]
