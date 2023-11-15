@@ -15,7 +15,7 @@ import random
 
 class GlobalLinearExplainer():
 
-    def __init__(self, model, x_test, y_pred, features, dataset, preload_explainer=True):
+    def __init__(self, model, x_test, y_pred, features, dataset, sparsity_threshold=0.1, coverage_threshold=0.1, starting_k=5, neighbourhood_threshold=0.05, preload_explainer=True):
         self.model = model
         self.features = features
         self.dataset = dataset
@@ -23,13 +23,14 @@ class GlobalLinearExplainer():
         self.y_pred = y_pred
         self.sub_sample = 5000
         self.plotting=True
-        self.sparsity_threshold = 0.1
-        self.coverage_threshold = 0.1
-        self.Starting_K = 5
-        self.LLR_neighbourhood = 0.05
+        self.sparsity_threshold = sparsity_threshold
+        self.coverage_threshold = coverage_threshold
+        self.starting_k = starting_k
+        self.neighbourhood_threshold = neighbourhood_threshold
+        self.ploting=False
 
         if preload_explainer:
-            with open(f'saved/{self.dataset}_feature_ensembles_full.pck', 'rb') as file:
+            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'rb') as file:
                 self.feature_ensembles = pck.load(file)
         else:
             self.feature_ensembles = None
@@ -75,11 +76,8 @@ class GlobalLinearExplainer():
     , K=20):
         print('Performing Local Linear Regression')
         # Perform LocalLinear regression on fetched data
-        print(type(xdata))
         LLR = LocalLinearRegression(xdata,ydata, dist_function='Euclidean')
-        w1, w2, w = LLR.calculateLocalModels()
-        print('Calculating Distances')
-        #
+        w1, w2, w = LLR.calculateLocalModels(self.neighbourhood_threshold)
 
         D, xDs= LLR.compute_distance_matrix(w, distance_weights=distance_weights)
         print('Doing K-medoids-clustering')
@@ -90,8 +88,6 @@ class GlobalLinearExplainer():
                               coverage_threshold=0.25*abs(max(xdata)-min(xdata)),
                               gaps_threshold=100,
                               similarity_threshold=0.1)
-
-
 
         clustered_data, medoids, linear_params, clustering_cost, fig = LC.adapted_clustering()
 
@@ -108,25 +104,24 @@ class GlobalLinearExplainer():
         random_samples = R.randint(2, len(x_test), 5000)
         x_test = x_test[random_samples]
         y_pred = y_pred[random_samples]
-        feature_ensembles = {feature: [] for feature in features}
+        self.feature_ensembles = {feature: [] for feature in features}
 
         discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
         # XDs, WDs, neighbourhoodDs
         distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
-#        for i in range(len(features)):
-        for i in range(6,8):
+        for i in range(len(features)):
+#        for i in range(6,8):
             print(f'--------{features[i]}---------')
             all_feature_clusters = []
             all_feature_linear_params = []
             feature_xs = x_test[:, i]
             if features[i] not in discrete_features:
                 cluster_assignments = self.feature_space_clustering(feature_xs)
-                K=5
+                K=self.starting_k
             else:
                 cluster_assignments = np.zeros(len(feature_xs))
                 K=1
 
-#            print(feature_xs)
             for super_cluster in np.unique(cluster_assignments):
                 print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
                 super_cluster_x_indices = np.array(np.argwhere(cluster_assignments == super_cluster)).flatten()
@@ -141,14 +136,14 @@ class GlobalLinearExplainer():
                 K=len(all_feature_clusters)
                 fig = self.plot_final_clustering(all_feature_clusters, all_feature_linear_params)
                 fig.write_html(f'Figures/Clustering/OptimisedClusters/{features[i]}_final_{K}.html')
-            feature_ensembles[features[i]] = [all_feature_clusters, all_feature_linear_params]
-            with open(f'saved/{self.dataset}_feature_ensembles.pck', 'wb') as file:
-                pck.dump(feature_ensembles, file)
+            self.feature_ensembles[features[i]] = [all_feature_clusters, all_feature_linear_params]
+            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'wb') as file:
+                pck.dump(self.feature_ensembles, file)
             if i == len(features):
-                with open(f'saved/{self.dataset}_feature_ensembles_full.pck', 'wb') as file:
-                    pck.dump(feature_ensembles, file)
+                with open(f'saved/{self.dataset}_feature_ensembles_full_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'wb') as file:
+                    pck.dump(self.feature_ensembles, file)
 
-        return feature_ensembles
+        return self.feature_ensembles
 
     def find_cluster_matches(self, data_instance, cluster_ranges):
         cluster_matches = []
@@ -187,12 +182,12 @@ class GlobalLinearExplainer():
 
 
         cluster_matches, local_x, local_y_pred = self.find_cluster_matches(data_instance, instance_cluster_ranges)
-        if self.plotting==True:
-            fig, axes = plt.subplots(1, 1, figsize=(10, 5))
-            axes.hist(cluster_matches, bins=range(1, len(self.features)))
-            axes.set_xlabel('Number of cluster matches')
-            axes.set_ylabel('Number of data instances')
-            fig.savefig(f'Figures/Clustering/{self.dataset}_{instance_index}_cluster_matches.png')
+#        if self.plotting==True:
+#            fig, axes = plt.subplots(1, 1, figsize=(10, 5))
+#            axes.hist(cluster_matches, bins=range(1, len(self.features)))
+#            axes.set_xlabel('Number of cluster matches')
+#            axes.set_ylabel('Number of data instances')
+#            fig.savefig(f'Figures/Clustering/{self.dataset}_{instance_index}_cluster_matches.png')
 
 
 
@@ -225,7 +220,6 @@ class GlobalLinearExplainer():
         axes = [[row, col] for row in range(1,num_rows+1) for col in range(1,num_cols+1)]
 
         for feature in features_to_plot:
-            print(self.feature_ensembles.keys())
             value = self.feature_ensembles[feature]
             feature_index = self.features.index(feature)
             i = features_to_plot.index(feature)
@@ -256,7 +250,7 @@ class GlobalLinearExplainer():
             height=350*num_rows
         fig.update_layout(legend=dict(yanchor="top", xanchor="auto", orientation='h'),
                           height=height, xaxis1_range=[-2,2], yaxis_range=[0,280])
-        fig.write_html(f'Figures/Clustering/{self.dataset}_clustering.html')
+        fig.write_html(f'Figures/Clustering/{self.dataset}_clustering_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.html')
 
         return fig
 

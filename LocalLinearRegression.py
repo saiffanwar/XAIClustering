@@ -64,7 +64,7 @@ class LocalLinearRegression():
         self.xDs_norm = np.array(list(map(lambda x: normalise(maxX, minX, x), self.xDs))).reshape(self.N, self.N)
 
 
-    def calculateLocalModels(self):
+    def calculateLocalModels(self, neighbourhood_threshold=0.05):
         ''' Calculates the local linear model for each point. First calulates the neighbourhood of a point by
         checking which points distance is less than the defined 5% neighbourhood threshold. Then performs linear regression within this neighbourhood.
         Stores the parameters and error of each LR model.'''
@@ -79,7 +79,7 @@ class LocalLinearRegression():
         self.pointwiseDistance(self.x, self.y)
         self.neighbourhoods = []
         for i in tqdm(range(self.N)):
-            check = [self.xDs_norm[i][j]<0.05 for j in range(self.N)]
+            check = [self.xDs_norm[i][j]<neighbourhood_threshold for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
 

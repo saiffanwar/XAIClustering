@@ -129,40 +129,70 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test, features = data_preprocessing()
 
     discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
-#    with open(f'saved/PHM08_model.pck', 'rb') as file:
-#        model = pck.load(file)
+    with open(f'saved/PHM08_model.pck', 'rb') as file:
+        model = pck.load(file)
 
     R = np.random.RandomState(42)
     random_samples = R.randint(2, len(x_test), 5000)
 
     x_train = x_train[random_samples]
     y_train = y_train[random_samples]
-    model = train(x_train, y_train)
+#    model = train(x_train, y_train)
     y_pred = evaluate(model, x_test, y_test)
 
     x_test = x_test[random_samples]
     y_pred = y_pred[random_samples]
     y_test = y_test[random_samples]
-    GLE = GlobalLinearExplainer(model, x_test, y_pred, features, 'PHM08', preload_explainer=True)
 #    GLE.plot_all_clustering()
-    GLE.multi_layer_clustering(discrete_features)
+#    GLE.multi_layer_clustering(discrete_features)
 #    instance = 100
     instances = [100]
 
+#    parameter_search = {
+#                        'sparsity': [0, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1],
+#                        'coverage': [0, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1],
+#                        'starting_k': [1,5,10,20],
+#                        'neighbourhood': [0.01, 0.05, 0.1, 0.25, 0.5, 1],
+#                        }
+
+    parameter_search = {
+                        'sparsity': [0, 0.05, 0.1, 0.25, 0.5, 1],
+                        'coverage': [0, 0.05, 0.1, 0.25, 0.5, 1],
+                        'starting_k': [1,5,10,20],
+                        'neighbourhood': [0.01, 0.05, 0.1, 0.25, 0.5, 1],
+                        }
     model_predictions = []
     chilli_predictions = []
     llc_predictions = []
+
 #    instances = random.sample(range(len(x_test)), 10)
-    for instance in instances:
-#        try:
-            print(f'--------- Instance  = {instance} ----------')
-            _,_, chilli_prediction = chilli_explain(model, instance=instance)
-            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
-            model_predictions.append(y_pred[instance])
-            chilli_predictions.append(chilli_prediction)
-            llc_predictions.append(llc_prediction)
-#        except:
-#            pass
+    instances = [4292, 4942, 3164, 2133, 4468, 2858, 4789, 2266, 3833, 873]
+    for sparsity_threshold in parameter_search['sparsity']:
+        for coverage_threshold in parameter_search['coverage']:
+            for starting_k in parameter_search['starting_k']:
+                for neighbourhood_threshold in parameter_search['neighbourhood']:
+                    print('-----------------')
+                    print(f'Sparsity threshold = {sparsity_threshold}')
+                    print(f'Coverage threshold = {coverage_threshold}')
+                    print(f'Starting k = {starting_k}')
+                    print(f'Neighbourhood threshold = {neighbourhood_threshold}')
+
+                    GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=True)
+
+                    GLE.multi_layer_clustering(discrete_features)
+                    for instance in instances:
+                        try:
+                            print(f'--------- Instance  = {instance} ----------')
+                            _,_, chilli_prediction = chilli_explain(model, instance=instance)
+                            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
+                            model_predictions.append(y_pred[instance])
+                            chilli_predictions.append(chilli_prediction)
+                            llc_predictions.append(llc_prediction)
+
+                        except:
+                            pass
+                        with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
+                            pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
 #    with open('saved/PHM08_results.pck', 'wb') as file:
 #        pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
 #    plot_results2()

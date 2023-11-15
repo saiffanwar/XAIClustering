@@ -216,23 +216,7 @@ class LinearClustering():
             fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_separating_gaps_{time.time()}.pdf', bbox_inches='tight')
 
 #        print('Post Gaps Check K = ', len(clustered_data))
-#
-#        if len(clustered_data) != 1:
-#            pre_clustered_data = deepcopy(clustered_data)
-#            clustered_data = self.check_cluster_containments(clustered_data)
-#            # Check if satisfying this constraint has changed the clustering.
-#            if pre_clustered_data != clustered_data:
-#                changes.append(True)
-#            else:
-#                changes.append(False)
-#
-#            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
-#        if self.plotting == True:
-#            fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
-#            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_merging_{time.time()}.pdf', bbox_inches='tight')
-#
-##        print('Post containments Check K = ', len(clustered_data))
-#
+
         if len(clustered_data) != 1:
             # Check if neighbouring clusters overlap.
             pre_clustered_data = deepcopy(clustered_data)
@@ -465,42 +449,6 @@ class LinearClustering():
         return ordered_clusters
 
 
-    '''--------------------------CONTAINMENTS---------------------------'''
-
-    def check_cluster_containments(self, clustered_data):
-
-        '''
-        Utility function which checks for overlap between clusters or (child) clusters entirely contained
-        within other (parent) clusters. If there is overlap, the parent cluster adopts the child cluster.
-        '''
-#
-        contained_clusters = []
-
-        if len(contained_clusters) > 0:
-            merged_clusters = self.adopt_clusters(clustered_data, contained_clusters)
-            return self.order_clusters(merged_clusters)
-        else:
-            return self.order_clusters(clustered_data)
-
-
-    def check_cluster_coverage(self, clustered_data):
-
-        data_x_range = max(self.x)-min(self.x)
-        clustered_datapoints = self.cluster_indices_to_datapoints(clustered_data)
-        for i in range(len(clustered_datapoints)-1):
-            if (min(clustered_datapoints[i+1][0])-min(clustered_datapoints[i][0])) < (1/self.init_K*2)*data_x_range:
-                clustered_data[i+1] = clustered_data[i+1] + clustered_data[i]
-                clustered_data[i] = []
-
-#        print(max(clustered_datapoints[len(clustered_datapoints)][0])-max(clustered_datapoints[len(clustered_datapoints)-1][0]))
-#        if (max(clustered_datapoints[len(clustered_datapoints)-1][0])-max(clustered_datapoints[len(clustered_datapoints)-2][0])) < (1/self.init_K)*data_x_range:
-#            clustered_data[-1] = clustered_data[-2] + clustered_data[-1]
-#            clustered_data[-1] = []
-        clustered_data = [cluster for cluster in clustered_data if cluster != []]
-
-        return clustered_data
-
-
     '''--------------------------OVERLAP---------------------------'''
 
     def check_cluster_overlap(self, clustered_data, linear_params, K):
@@ -574,7 +522,7 @@ class LinearClustering():
         clustered_data = [cluster for cluster in clustered_data if cluster != []]
         return clustered_data
 
-    '''--------------------------SPARSITY---------------------------'''
+    '''--------------------------SPARSITY & COVERAGE---------------------------'''
 
 
     def check_cluster_sparsity(self, clustered_data, linear_params):
@@ -678,92 +626,27 @@ class LinearClustering():
 
         return clustered_data
 
-    def create_cluster_heirarchy(self, contained_clusters):
-
-        '''
-        Utility function which creates a heirarchy of clusters based on the contained_clusters list.
-        Clusters contained within clusters that are also children of other clusters, are all merged into
-        the top level parent cluster.
-        '''
-
-        all_clusters = np.unique(np.array(contained_clusters).flatten())
-        cluster_children = {cluster:[] for cluster in all_clusters}
-
-        all_parents = [j[0] for j in contained_clusters]
-        all_children = [j[1] for j in contained_clusters]
-        for i in contained_clusters:
-            for j in all_parents:
-                if i[0] == j:
-                    cluster_children[j].append(all_children[all_parents.index(j)])
-                    all_children.remove(all_children[all_parents.index(j)])
-                    all_parents.remove(j)
-
-        for cluster, children in cluster_children.items():
-            all_children = {j:cluster_children[j] for j in all_clusters}
-            for parent, child in all_children.items():
-                if cluster in child:
-                    cluster_children[parent].extend(cluster_children[cluster])
-                    cluster_children[cluster] = []
-        return cluster_children
-
-    def adopt_clusters(self, clustered_data, contained_clusters):
-
-        '''
-        Utility function which merges clusters contained within other clusters into the parent cluster.
-        '''
-
-        merges = self.create_cluster_heirarchy(contained_clusters)
-        merged_clusters = {i:clustered_data[i] for i in range(len(clustered_data))}
-        for parent, children in merges.items():
-            for child in children:
-#                fig, axes = plt.subplots(1,2, figsize=(20*0.39,4*0.39))
-#                axes[0].scatter(self.x[merged_clusters[parent]], self.y[merged_clusters[parent]], color='blue', s=1, label='Parent Cluster')
-#                axes[0].scatter(self.x[merged_clusters[child]], self.y[merged_clusters[child]], color='red', s=1, label='Child Cluster')
-                merged_clusters[parent].extend(clustered_data[child])
-                merged_clusters[child] = []
-#                axes[1].scatter(self.x[merged_clusters[parent]], self.y[merged_clusters[parent]], color='blue', s=1)
-
-
-#                for ax in [0,1]:
-#                    axes[ax].set_xlim(1.05*(min(self.x)), 1.05*(max(self.x)))
-#                    axes[ax].set_ylim(1.05*(min(self.y)), 1.05*(max(self.y)))
-#                    axes[ax].set_xlabel(r'$x$', fontsize=11)
-#                    axes[ax].set_xticklabels(axes[ax].get_xticklabels(), fontsize=11)
-#                axes[0].set_ylabel(r'$\hat{y}$', fontsize=11)
-#                axes[1].set_ylabel('')
-#                axes[1].set_yticklabels('')
-#
-#
-#                fig.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=2, fontsize=11)
-#                fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/adopted_{parent}_{child}.pdf', bbox_inches='tight')
-
-        new_clusters = list(merged_clusters.values())
-        new_clusters = [i for i in new_clusters if i != []]
-        return new_clusters
-
     def cluster_indices_to_datapoints(self, clustered_indices):
 
-#        try:
-
-            '''
-            Utility function which converts the clusters containing indices of the x values to the raw x datapoint values.
-            '''
-            # If it just a single cluster whose datapoints are being fetched, then dont create nested lists.
-            if isinstance(clustered_indices[0], (int, np.integer)):
-                xs, ys = [], []
-                for i in clustered_indices:
-                    xs.append(self.x[i])
-                    ys.append(self.y[i])
-                return xs, ys
-            # If it is a list of clusters, then create nested lists.
-            else:
-                datapoints = [[[],[]] for i in range(len(clustered_indices))]
-                for cluster in range(len(clustered_indices)):
-                    for i, point_index in enumerate(clustered_indices[cluster]):
+        '''
+        Utility function which converts the clusters containing indices of the x values to the raw x datapoint values.
+        '''
+        # If it just a single cluster whose datapoints are being fetched, then dont create nested lists.
+        if isinstance(clustered_indices[0], (int, np.integer)):
+            xs, ys = [], []
+            for i in clustered_indices:
+                xs.append(self.x[i])
+                ys.append(self.y[i])
+            return xs, ys
+        # If it is a list of clusters, then create nested lists.
+        else:
+            datapoints = [[[],[]] for i in range(len(clustered_indices))]
+            for cluster in range(len(clustered_indices)):
+                for i, point_index in enumerate(clustered_indices[cluster]):
 #                        print(cluster, point_index)
-                        datapoints[cluster][0].append(self.x[point_index])
-                        datapoints[cluster][1].append(self.y[point_index])
-                return datapoints
+                    datapoints[cluster][0].append(self.x[point_index])
+                    datapoints[cluster][1].append(self.y[point_index])
+            return datapoints
 
     def calculate_clustering_cost(self, clustered_data):
 
@@ -782,14 +665,10 @@ class LinearClustering():
             cluster_y = cluster[1]
             w,b = LR(cluster_x, cluster_y)
             cluster_pred = [w*x+b for x in cluster_x]
-#            cluster_error = np.sum([abs(y_hat-y) for y_hat,y in zip(cluster_pred, cluster_y)])
             cluster_error = mean_squared_error(cluster_y, cluster_pred, squared=False)
             [ys.append(y) for y in cluster_y]
             [preds.append(pred) for pred in cluster_pred]
-#            print(f'Cluster {cluster_num} error:', cluster_error)
-#            total_error += cluster_error
         total_error = mean_squared_error(ys, preds,  squared=False)
-#        total_error = total_error/len(clustered_data)
         return total_error
 
 
@@ -821,7 +700,6 @@ class LinearClustering():
     def plotMedoids(self, clustered_data, medoids, linear_params, clustering_cost):
         clustered_data = self.cluster_indices_to_datapoints(clustered_data)
 #    CR = CyclicRegression()
-#    plotly_Fig = None
         inch_to_cm = 0.39
         colours = self.colours
         fig, axes = plt.subplots(1,1,figsize=(15*inch_to_cm,8*inch_to_cm))
@@ -839,11 +717,7 @@ class LinearClustering():
             cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
             axes[0].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
             axes[0].plot(cluster_range, w*cluster_range+b, linewidth=0.5, c=colour)
-#            if medoids != None:
-#                axes[0].scatter(self.x[medoids[i]], self.y[medoids[i]], s=20, marker='X', c=colour, label='_nolegend_')
-#        clustering_cost = None
         if clustering_cost:
-#            axes[0].text(0,1.05, f'Clustering Cost: {clustering_cost}', fontsize=11)
             axes[0].set_title(f'K-Medoids clustering of LLR models into {len(clustered_data)} clusters \n  Clustering Cost: {clustering_cost:.2f}', fontsize=11)
 
         try:
@@ -853,7 +727,6 @@ class LinearClustering():
 
 #        plotly_Fig = CR.plotCircularData(clustered_data[i][0], clustered_data[i][1], preds[i], plotly_Fig, colour)
         return fig
-#    plotly_Fig.show()
 
     def plot_final_clustering(self, clustered_data, linear_params):
         cost = self.calculate_clustering_cost(clustered_data)

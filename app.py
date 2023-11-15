@@ -18,7 +18,7 @@ random_samples = R.randint(2, len(x_test), 2500)
 x_test = x_test[random_samples]
 y_pred = y_pred[random_samples]
 y_test = y_test[random_samples]
-GLE = GlobalLinearExplainer(model, x_test, y_pred, features, 'PHM08', preload_explainer=True)
+GLE = GlobalLinearExplainer(model, x_test, y_pred, features, 'PHM08', sparsity_threshold=0, coverage_threshold=0, starting_k=5, neighbourhood_threshold=0.05,  preload_explainer=True)
 #instance=100
 #llc_prediction, plotting_data = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
 #data_instance, instance_index, local_x, local_y_pred, instance_prediction, exp_instance_prediction, exp_local_y_pred, instance_explanation, instance_cluster_models = plotting_data
@@ -49,8 +49,12 @@ app.layout = html.Div(
             html.Button('Select All Features', id='all-features', n_clicks=0, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px'}),
             html.Button('Show All Clusters', id='show-clustering', n_clicks=0, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px'}),
             html.Button('Reset Plot', id='reset-button', n_clicks=0, style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px'})
-            ], style=dict(margin='10px 0'))
-            ], style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px'}),
+            ], style=dict(margin='10px 0')),
+            dcc.Dropdown(id='sparsity-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False,style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '0px', 'width': '60px'}),
+            dcc.Dropdown(id='coverage-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False,  style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'}),
+            dcc.Dropdown(id='neighbourhood-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'}),
+            dcc.Dropdown(id='starting-k', options=[1,5,10,20,50], value=5, multi=False, clearable=False, style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px'})
+            ], style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '0px'}),
             dcc.Graph(id='explanation-plot', figure=GLE.plot_explanation(), style={'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '10px'})
             ]),
         dcc.Graph(id='data-plot',
