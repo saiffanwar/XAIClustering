@@ -23,6 +23,11 @@ import plotly.graph_objects as go
 import plotly
 from run_linear_clustering import GlobalLinearExplainer
 
+import logging
+import threading
+import time
+import concurrent.futures
+
 plt.rcParams['text.usetex'] = True
 
 def data_preprocessing():
@@ -56,7 +61,7 @@ def data_visualisation():
 def train(x_train, y_train):
     model = GradientBoostingRegressor(max_depth=5, n_estimators=500, random_state=42)
     model.fit(x_train, y_train)
-    with open('saved/model.pck', 'wb') as file:
+    with open('saved/PHM08_model.pck', 'wb') as file:
             pck.dump(model, file)
     return model
 
@@ -124,6 +129,12 @@ def plot_results2():
     fig.legend(['Model predictions', 'CHILLI predictions', 'LLC predictions'],loc='center', bbox_to_anchor=(0.5,0.98), ncols=3)
     fig.savefig('Figures/Results.pdf', bbox_inches='tight')
 
+def run_clustering(search_num, sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold):
+    print('Starting thread with parameters: ',sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
+    GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=False)
+
+    GLE.multi_layer_clustering(search_num, discrete_features)
+    print('finishing thread with parameters: ',sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
 
 if __name__ == '__main__':
     x_train, x_test, y_train, y_test, features = data_preprocessing()
@@ -155,44 +166,72 @@ if __name__ == '__main__':
 #                        'neighbourhood': [0.01, 0.05, 0.1, 0.25, 0.5, 1],
 #                        }
 
-    parameter_search = {
-                        'sparsity': [0, 0.05, 0.1, 0.25, 0.5, 1],
-                        'coverage': [0, 0.05, 0.1, 0.25, 0.5, 1],
-                        'starting_k': [1,5,10,20],
-                        'neighbourhood': [0.01, 0.05, 0.1, 0.25, 0.5, 1],
-                        }
+    parameter_search = {'1':{
+                        'sparsity': [0],
+                        'coverage': [0, 0.05, 0.5, 1],
+                        'starting_k': [1,5,10],
+                        'neighbourhood': [0.05, 0.1, 0.5],
+                        },
+#                        'sparsity': [0],
+#                        'coverage': [0.05],
+#                        'starting_k': [5],
+#                        'neighbourhood': [0.05],
+#                        },
+                        '2':{
+                        'sparsity': [0.05],
+                        'coverage': [0, 0.05, 0.5, 1],
+                        'starting_k': [1,5,10],
+                        'neighbourhood': [0.05, 0.1, 0.5],
+                        },
+                        '3':{
+                        'sparsity': [0.5],
+                        'coverage': [0, 0.05, 0.5, 1],
+                        'starting_k': [1,5,10],
+                        'neighbourhood': [0.05, 0.1, 0.5],
+                        },
+                        '4':{
+                        'sparsity': [0.5],
+                        'coverage': [0, 0.05, 0.5, 1],
+                        'starting_k': [1,5,10],
+                        'neighbourhood': [0.05, 0.1, 0.5],
+                        }}
     model_predictions = []
     chilli_predictions = []
     llc_predictions = []
 
 #    instances = random.sample(range(len(x_test)), 10)
+    parameter_search_list = []
     instances = [4292, 4942, 3164, 2133, 4468, 2858, 4789, 2266, 3833, 873]
-    for sparsity_threshold in parameter_search['sparsity']:
-        for coverage_threshold in parameter_search['coverage']:
-            for starting_k in parameter_search['starting_k']:
-                for neighbourhood_threshold in parameter_search['neighbourhood']:
-                    print('-----------------')
-                    print(f'Sparsity threshold = {sparsity_threshold}')
-                    print(f'Coverage threshold = {coverage_threshold}')
-                    print(f'Starting k = {starting_k}')
-                    print(f'Neighbourhood threshold = {neighbourhood_threshold}')
+    for sparsity_threshold in parameter_search[sys.argv[1]]['sparsity']:
+        for coverage_threshold in parameter_search[sys.argv[1]]['coverage']:
+            for starting_k in parameter_search[sys.argv[1]]['starting_k']:
+                for neighbourhood_threshold in parameter_search[sys.argv[1]]['neighbourhood']:
+                    parameter_search_list.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
+#                    print('-----------------')
+#                    print(f'Sparsity threshold = {sparsity_threshold}')
+#                    print(f'Coverage threshold = {coverage_threshold}')
+#                    print(f'Starting k = {starting_k}')
+#                    print(f'Neighbourhood threshold = {neighbourhood_threshold}')
 
-                    GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=True)
+                    t1 = threading.Thread(target=run_clustering, args=(len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
+                    t1.start()
+#    print(len(parameter_search_list))
+#    with concurrent.futures.ThreadPoolExecutor(max_workers=36) as executor:
+#        executor.map(run_clustering, parameter_search_list)
 
-                    GLE.multi_layer_clustering(discrete_features)
-                    for instance in instances:
-                        try:
-                            print(f'--------- Instance  = {instance} ----------')
-                            _,_, chilli_prediction = chilli_explain(model, instance=instance)
-                            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
-                            model_predictions.append(y_pred[instance])
-                            chilli_predictions.append(chilli_prediction)
-                            llc_predictions.append(llc_prediction)
-
-                        except:
-                            pass
-                        with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
-                            pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
+#                    for instance in instances:
+#                        try:
+#                            print(f'--------- Instance  = {instance} ----------')
+#                            _,_, chilli_prediction = chilli_explain(model, instance=instance)
+#                            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
+#                            model_predictions.append(y_pred[instance])
+#                            chilli_predictions.append(chilli_prediction)
+#                            llc_predictions.append(llc_prediction)
+#
+#                        except:
+#                            pass
+#                        with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
+#                            pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
 #    with open('saved/PHM08_results.pck', 'wb') as file:
 #        pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
 #    plot_results2()
@@ -204,6 +243,6 @@ if __name__ == '__main__':
 
 
 
-
+#
 
 

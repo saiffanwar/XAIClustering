@@ -12,6 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 from matplotlib import pyplot as plt
 import pickle as pck
 import random
+from tqdm import tqdm
 
 class GlobalLinearExplainer():
 
@@ -30,7 +31,8 @@ class GlobalLinearExplainer():
         self.ploting=False
 
         if preload_explainer:
-            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'rb') as file:
+#            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'rb') as file:
+#            with open(f'saved/{self.dataset}_feature_ensembles_full.pck', 'rb') as file:
                 self.feature_ensembles = pck.load(file)
         else:
             self.feature_ensembles = None
@@ -74,13 +76,13 @@ class GlobalLinearExplainer():
 
     def linear_clustering(self, xdata, ydata, feature, distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
     , K=20):
-        print('Performing Local Linear Regression')
+#        print('Performing Local Linear Regression')
         # Perform LocalLinear regression on fetched data
         LLR = LocalLinearRegression(xdata,ydata, dist_function='Euclidean')
         w1, w2, w = LLR.calculateLocalModels(self.neighbourhood_threshold)
 
         D, xDs= LLR.compute_distance_matrix(w, distance_weights=distance_weights)
-        print('Doing K-medoids-clustering')
+#        print('Doing K-medoids-clustering')
         # Define number of medoids and perform K medoid clustering.
 
         LC = LinearClustering(xdata, ydata, D, xDs, feature, K,
@@ -93,12 +95,13 @@ class GlobalLinearExplainer():
 
         return clustered_data, medoids, linear_params, clustering_cost
 
-    def multi_layer_clustering(self, discrete_features):
+    def multi_layer_clustering(self, search_num, discrete_features):
         x_test = self.x_test
         y_pred = self.y_pred
         features = self.features
         with open(f'saved/{self.dataset}_model.pck', 'rb') as file:
             model = pck.load(file)
+        print(f'{self.dataset}_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}')
 
         R = np.random.RandomState(42)
         random_samples = R.randint(2, len(x_test), 5000)
@@ -109,9 +112,10 @@ class GlobalLinearExplainer():
         discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
         # XDs, WDs, neighbourhoodDs
         distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
-        for i in range(len(features)):
+        for i in tqdm(range(len(features))):
+            print(f'{search_num} ^')
 #        for i in range(6,8):
-            print(f'--------{features[i]}---------')
+#            print(f'--------{features[i]} ({i} out of {len(features)})---------')
             all_feature_clusters = []
             all_feature_linear_params = []
             feature_xs = x_test[:, i]
@@ -123,7 +127,7 @@ class GlobalLinearExplainer():
                 K=1
 
             for super_cluster in np.unique(cluster_assignments):
-                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
+#                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
                 super_cluster_x_indices = np.array(np.argwhere(cluster_assignments == super_cluster)).flatten()
                 super_cluster_xs = feature_xs[super_cluster_x_indices]
                 super_cluster_y_pred = y_pred[super_cluster_x_indices]
@@ -137,9 +141,9 @@ class GlobalLinearExplainer():
                 fig = self.plot_final_clustering(all_feature_clusters, all_feature_linear_params)
                 fig.write_html(f'Figures/Clustering/OptimisedClusters/{features[i]}_final_{K}.html')
             self.feature_ensembles[features[i]] = [all_feature_clusters, all_feature_linear_params]
-            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'wb') as file:
-                pck.dump(self.feature_ensembles, file)
-            if i == len(features):
+#            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'wb') as file:
+#                pck.dump(self.feature_ensembles, file)
+            if i == len(features)-1:
                 with open(f'saved/{self.dataset}_feature_ensembles_full_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'wb') as file:
                     pck.dump(self.feature_ensembles, file)
 

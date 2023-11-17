@@ -1,0 +1,87 @@
+MSE:  1816.535068058438
+Starting thread with parameters:  0 0 1 0.05
+Starting thread with parameters:  0 0 1 0.1
+Starting thread with parameters:  0 0 1 0.5
+Starting thread with parameters:  0 0 5 0.05
+Starting thread with parameters:  0 0 5 0.1
+Starting thread with parameters:  0 0 5 0.5
+Starting thread with parameters:  0 0 10 0.05
+Starting thread with parameters:  0 0 10 0.1
+Starting thread with parameters:  0 0 10 0.5
+Starting thread with parameters:  0 0.05 1 0.05
+PHM08_0_0_1_0.1
+PHM08_0_0_1_0.05
+Starting thread with parameters:  0 0.05 1 0.1
+PHM08_0_0_1_0.5
+PHM08_0_0_10_0.05
+PHM08_0_0_5_0.05
+Starting thread with parameters:  0 0.05 1 0.5
+PHM08_0_0_5_0.1
+PHM08_0_0.05_1_0.05
+Starting thread with parameters:  0 0.05 5 0.05
+PHM08_0_0_10_0.5
+Starting thread with parameters:  0 0.05 5 0.1
+PHM08_0_0_5_0.5
+Starting thread with parameters:  0 0.05 5 0.5
+Starting thread with parameters:  0 0.05 10 0.05
+PHM08_0_0_10_0.1
+PHM08_0_0.05_1_0.1
+PHM08_0_0.05_5_0.05
+PHM08_0_0.05_5_0.1
+Starting thread with parameters:  0 0.05 10 0.1
+PHM08_0_0.05_5_0.5
+PHM08_0_0.05_1_0.5
+PHM08_0_0.05_10_0.05
+Starting thread with parameters:  0 0.05 10 0.5
+Starting thread with parameters:  0 0.5 1 0.05
+Starting thread with parameters:  0 0.5 1 0.1
+Starting thread with parameters:  0 0.5 1 0.5
+Starting thread with parameters:  0 0.5 5 0.05
+PHM08_0_0.05_10_0.5
+PHM08_0_0.5_1_0.1
+PHM08_0_0.05_10_0.1
+Starting thread with parameters:  0 0.5 5 0.1
+Starting thread with parameters:  0 0.5 5 0.5
+PHM08_0_0.5_5_0.05
+Starting thread with parameters:  0 0.5 10 0.05
+PHM08_0_0.5_1_0.05
+PHM08_0_0.5_1_0.5
+Starting thread with parameters:  0 0.5 10 0.1
+PHM08_0_0.5_5_0.1
+Starting thread with parameters:  0 0.5 10 0.5
+PHM08_0_0.5_5_0.5
+Starting thread with parameters:  0 1 1 0.05
+PHM08_0_0.5_10_0.05
+Starting thread with parameters:  0 1 1 0.1
+PHM08_0_0.5_10_0.1
+Starting thread with parameters:  0 1 1 0.5
+Starting thread with parameters:  0 1 5 0.05
+PHM08_0_0.5_10_0.5
+PHM08_0_1_1_0.05
+23 ^
+Starting thread with parameters:  0 1 5 0.1
+PHM08_0_1_1_0.1
+Starting thread with parameters:  0 1 5 0.5
+PHM08_0_1_1_0.5
+PHM08_0_1_5_0.05
+2 ^
+Starting thread with parameters:  0 1 10 0.05
+PHM08_0_1_5_0.1
+PHM08_0_1_5_0.5
+4 ^
+Starting thread with parameters:  0 1 10 0.1
+Starting thread with parameters:  0 1 10 0.5
+PHM08_0_1_10_0.05
+PHM08_0_1_10_0.5
+PHM08_0_1_10_0.1
+26 ^
+27 ^
+29 ^
+15 ^
+28 ^
+30 ^
+31 ^
+32 ^
+33 ^
+22 ^
+11 ^

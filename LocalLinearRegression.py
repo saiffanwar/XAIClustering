@@ -4,7 +4,6 @@ import random
 import matplotlib.pyplot as plt
 from itertools import compress
 from sklearn.metrics import mean_squared_error
-import kmedoids
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
@@ -78,7 +77,7 @@ class LocalLinearRegression():
 #        Calculate distances between all points so can reuse later.
         self.pointwiseDistance(self.x, self.y)
         self.neighbourhoods = []
-        for i in tqdm(range(self.N)):
+        for i in range(self.N):
             check = [self.xDs_norm[i][j]<neighbourhood_threshold for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
@@ -124,10 +123,10 @@ class LocalLinearRegression():
         wDs, mseDs, neighbourhoodDs = [], [], []
 
         euclidean = lambda l1, l2: sum((p-q)**2 for p, q in zip(l1, l2)) ** .5
-        print('Computing Distance Matrix...')
+#        print('Computing Distance Matrix...')
         if instance == None:
             D = np.zeros((self.N,self.N))
-            [(wDs.append(euclidean(w[i], w[j])), neighbourhoodDs.append(abs(self.neighbourhoods[i]-self.neighbourhoods[j]))) for i in tqdm(range(self.N)) for j in range(self.N)]
+            [(wDs.append(euclidean(w[i], w[j])), neighbourhoodDs.append(abs(self.neighbourhoods[i]-self.neighbourhoods[j]))) for i in range(self.N) for j in range(self.N)]
             normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
 
             maxWds, minWds = np.max(wDs), np.min(wDs)
