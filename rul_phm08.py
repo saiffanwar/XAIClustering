@@ -23,10 +23,11 @@ import plotly.graph_objects as go
 import plotly
 from run_linear_clustering import GlobalLinearExplainer
 
-import logging
-import threading
-import time
-import concurrent.futures
+import multiprocessing
+#import logging
+#import threading
+#import time
+#import concurrent.futures
 
 plt.rcParams['text.usetex'] = True
 
@@ -129,7 +130,7 @@ def plot_results2():
     fig.legend(['Model predictions', 'CHILLI predictions', 'LLC predictions'],loc='center', bbox_to_anchor=(0.5,0.98), ncols=3)
     fig.savefig('Figures/Results.pdf', bbox_inches='tight')
 
-def run_clustering(search_num, sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold):
+def run_clustering(model, x_test,y_pred, features, discrete_features, search_num, sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold):
     print('Starting thread with parameters: ',sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
     GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=False)
 
@@ -167,13 +168,13 @@ if __name__ == '__main__':
 #                        }
 
     parameter_search = {'1':{
-                        'sparsity': [0],
+                        'sparsity': [0]
                         'coverage': [0, 0.05, 0.5, 1],
                         'starting_k': [1,5,10],
                         'neighbourhood': [0.05, 0.1, 0.5],
                         },
 #                        'sparsity': [0],
-#                        'coverage': [0.05],
+#                        'coverage': [0, 0.05, 0.5, 1],
 #                        'starting_k': [5],
 #                        'neighbourhood': [0.05],
 #                        },
@@ -213,8 +214,11 @@ if __name__ == '__main__':
 #                    print(f'Starting k = {starting_k}')
 #                    print(f'Neighbourhood threshold = {neighbourhood_threshold}')
 
-                    t1 = threading.Thread(target=run_clustering, args=(len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
-                    t1.start()
+                    process = multiprocessing.Process(target=run_clustering, args=(model, x_test, y_pred, features, discrete_features,  len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
+                    process.start()
+#                    t1 = threading.Thread(target=run_clustering, args=(len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
+#                    t1.start()
+#                    t1.join()
 #    print(len(parameter_search_list))
 #    with concurrent.futures.ThreadPoolExecutor(max_workers=36) as executor:
 #        executor.map(run_clustering, parameter_search_list)

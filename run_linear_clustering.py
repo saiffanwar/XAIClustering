@@ -115,7 +115,7 @@ class GlobalLinearExplainer():
         for i in tqdm(range(len(features))):
             print(f'{search_num} ^')
 #        for i in range(6,8):
-#            print(f'--------{features[i]} ({i} out of {len(features)})---------')
+            print(f'--------{features[i]} ({i} out of {len(features)})---------')
             all_feature_clusters = []
             all_feature_linear_params = []
             feature_xs = x_test[:, i]
@@ -127,7 +127,7 @@ class GlobalLinearExplainer():
                 K=1
 
             for super_cluster in np.unique(cluster_assignments):
-#                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
+                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
                 super_cluster_x_indices = np.array(np.argwhere(cluster_assignments == super_cluster)).flatten()
                 super_cluster_xs = feature_xs[super_cluster_x_indices]
                 super_cluster_y_pred = y_pred[super_cluster_x_indices]
