@@ -50,11 +50,13 @@ app.layout = html.Div(
             html.Button('Show All Clusters', id='show-clustering', n_clicks=0, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px'}),
             html.Button('Reset Plot', id='reset-button', n_clicks=0, style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px'})
             ], style=dict(margin='10px 0')),
-            dcc.Dropdown(id='sparsity-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False,style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '0px', 'width': '60px'}),
-            dcc.Dropdown(id='coverage-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False,  style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'}),
-            dcc.Dropdown(id='neighbourhood-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.01, multi=False, clearable=False, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'}),
-            dcc.Dropdown(id='starting-k', options=[1,5,10,20,50], value=5, multi=False, clearable=False, style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px'})
+            html.Div(id='thresolds-selction', children=[
+            html.Div(children=[html.Label('Sparsity Threshold: '), dcc.Dropdown(id='sparsity-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0, multi=False, clearable=False,style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '0px', 'width': '60px'})], style={'margin': '10px 0'}),
+            html.Div(children=[html.Label('Coverage Threshold: '), dcc.Dropdown(id='coverage-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=1, multi=False, clearable=False,  style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'})], style={'margin': '10px 0'}),
+            html.Div(children=[html.Label('Starting K:  '), dcc.Dropdown(id='starting-k', options=[1,5,10,20,50], value=10, multi=False, clearable=False, style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'})], style={'margin': '10px 0'}),
+            html.Div(children=[html.Label('Neighbourhood Threshold:  '), dcc.Dropdown(id='neighbourhood-threshold', options=[0,0.01,0.05,0.1,0.25,0.5,1], value=0.05, multi=False, clearable=False, style={'display': 'inline-block', 'horizontal-align': 'left', 'vertical-align': 'middle', 'margin-left': '10px', 'width': '60px'})], style={'margin': '10px 0'}),
             ], style={'display': 'inline-block', 'vertical-align': 'middle', 'margin-left': '0px'}),
+            ]),
             dcc.Graph(id='explanation-plot', figure=GLE.plot_explanation(), style={'display': 'inline-block', 'vertical-align': 'top', 'margin-left': '10px'})
             ]),
         dcc.Graph(id='data-plot',
@@ -65,6 +67,10 @@ app.layout = html.Div(
 @app.callback(Output('data-plot','figure'),
             Output('feature-selection', 'value'),
             Output('data-plot', 'clickData'),
+            Input('sparsity-threshold', 'value'),
+            Input('coverage-threshold', 'value'),
+            Input('starting-k', 'value'),
+            Input('neighbourhood-threshold', 'value'),
             Input('data-plot', 'clickData'),
             Input('feature-selection', 'value'),
             Input('reset-button', 'n_clicks'),
@@ -72,7 +78,11 @@ app.layout = html.Div(
             Input('no-features', 'n_clicks'),
             Input('show-clustering', 'n_clicks'))
 
-def update_data_plot(click_data, features_to_plot, reset_button, all_features_button, no_features_button, show_clustering_button):
+def update_data_plot(sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold, click_data, features_to_plot, reset_button, all_features_button, no_features_button, show_clustering_button):
+
+    GLE = GlobalLinearExplainer(model, x_test, y_pred, features, 'PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold,  preload_explainer=True)
+#    if callback_context.triggered_id in ['sparsity_threshold', 'coverage_threshold', 'starting_k', 'neighbourhood_threshold']:
+#        GLE = GlobalLinearExplainer(model, x_test, y_pred, features, 'PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold,  preload_explainer=True)
 
     if callback_context.triggered_id == 'all-features':
         features_to_plot = GLE.features

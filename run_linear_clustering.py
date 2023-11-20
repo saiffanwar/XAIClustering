@@ -31,7 +31,7 @@ class GlobalLinearExplainer():
         self.ploting=False
 
         if preload_explainer:
-#            with open(f'saved/{self.dataset}_feature_ensembles_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'rb') as file:
+            with open(f'saved/feature_ensembles/{self.dataset}_feature_ensembles_full_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pck', 'rb') as file:
 #            with open(f'saved/{self.dataset}_feature_ensembles_full.pck', 'rb') as file:
                 self.feature_ensembles = pck.load(file)
         else:

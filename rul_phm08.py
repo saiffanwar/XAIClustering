@@ -137,6 +137,42 @@ def run_clustering(model, x_test,y_pred, features, discrete_features, search_num
     GLE.multi_layer_clustering(search_num, discrete_features)
     print('finishing thread with parameters: ',sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
 
+
+def compare_parameters(parameter_search):
+    sparsity_threshold=0
+    sparsitys = []
+    coverages = []
+    starting_ks = []
+    neighbourhoods = []
+    rmses = []
+    for coverage_threshold in parameter_search[sys.argv[1]]['coverage']:
+        for starting_k in parameter_search[sys.argv[1]]['starting_k']:
+            for neighbourhood_threshold in parameter_search[sys.argv[1]]['neighbourhood']:
+                try:
+                    with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'rb') as file:
+                        model_predictions, llc_predictions, rmse = pck.load(file)
+                    coverages.append(coverage_threshold)
+                    starting_ks.append(starting_k)
+                    neighbourhoods.append(neighbourhood_threshold)
+                    rmses.append(rmse)
+
+                    print(f'{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold} = {rmse}')
+                except:
+                    print('no file')
+
+    fig, ax = plt.subplots()
+    im = ax.imshow([rmses,rmses], cmap='hot', interpolation='nearest')
+#
+#    fig = go.Figure(data=[go.Surface(z=coverages, x=starting_ks, y=rmses)])
+#    fig.update_layout(title=f'Sparsity = {sparsity_threshold}', autosize=False,
+#                      width=500, height=500,
+#                      margin=dict(l=65, r=50, b=65, t=90))
+    plt.show()
+#    with open('saved/feature_ensembles.pck', 'rb') as file:
+#        feature_ensembles = pck.load(file)
+#    plot_all_clustering(feature_ensembles)
+
+
 if __name__ == '__main__':
     x_train, x_test, y_train, y_test, features = data_preprocessing()
 
@@ -156,9 +192,6 @@ if __name__ == '__main__':
     y_pred = y_pred[random_samples]
     y_test = y_test[random_samples]
 #    GLE.plot_all_clustering()
-#    GLE.multi_layer_clustering(discrete_features)
-#    instance = 100
-    instances = [100]
 
 #    parameter_search = {
 #                        'sparsity': [0, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1],
@@ -168,7 +201,7 @@ if __name__ == '__main__':
 #                        }
 
     parameter_search = {'1':{
-                        'sparsity': [0]
+                        'sparsity': [0],
                         'coverage': [0, 0.05, 0.5, 1],
                         'starting_k': [1,5,10],
                         'neighbourhood': [0.05, 0.1, 0.5],
@@ -191,59 +224,41 @@ if __name__ == '__main__':
                         'neighbourhood': [0.05, 0.1, 0.5],
                         },
                         '4':{
-                        'sparsity': [0.5],
+                        'sparsity': [1],
                         'coverage': [0, 0.05, 0.5, 1],
                         'starting_k': [1,5,10],
                         'neighbourhood': [0.05, 0.1, 0.5],
                         }}
-    model_predictions = []
-    chilli_predictions = []
-    llc_predictions = []
+#    compare_parameters(parameter_search)
 
-#    instances = random.sample(range(len(x_test)), 10)
-    parameter_search_list = []
-    instances = [4292, 4942, 3164, 2133, 4468, 2858, 4789, 2266, 3833, 873]
+#    parameter_search_list = []
+#    instances = [4292, 4942, 3164, 2133, 4468, 2858, 4789, 2266, 3833, 873]
     for sparsity_threshold in parameter_search[sys.argv[1]]['sparsity']:
         for coverage_threshold in parameter_search[sys.argv[1]]['coverage']:
             for starting_k in parameter_search[sys.argv[1]]['starting_k']:
                 for neighbourhood_threshold in parameter_search[sys.argv[1]]['neighbourhood']:
                     parameter_search_list.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
-#                    print('-----------------')
-#                    print(f'Sparsity threshold = {sparsity_threshold}')
-#                    print(f'Coverage threshold = {coverage_threshold}')
-#                    print(f'Starting k = {starting_k}')
-#                    print(f'Neighbourhood threshold = {neighbourhood_threshold}')
 
-                    process = multiprocessing.Process(target=run_clustering, args=(model, x_test, y_pred, features, discrete_features,  len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
-                    process.start()
-#                    t1 = threading.Thread(target=run_clustering, args=(len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
-#                    t1.start()
-#                    t1.join()
-#    print(len(parameter_search_list))
-#    with concurrent.futures.ThreadPoolExecutor(max_workers=36) as executor:
-#        executor.map(run_clustering, parameter_search_list)
-
-#                    for instance in instances:
-#                        try:
-#                            print(f'--------- Instance  = {instance} ----------')
+                    model_predictions = []
+                    chilli_predictions = []
+                    llc_predictions = []
+#                    process = multiprocessing.Process(target=run_clustering, args=(model, x_test, y_pred, features, discrete_features,  len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
+#                    process.start()
+                    try:
+                        GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=True)
+                        for instance in instances:
+                                print(f'--------- Instance  = {instance} ----------')
 #                            _,_, chilli_prediction = chilli_explain(model, instance=instance)
-#                            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
-#                            model_predictions.append(y_pred[instance])
+                                llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
+                                model_predictions.append(y_pred[instance])
 #                            chilli_predictions.append(chilli_prediction)
-#                            llc_predictions.append(llc_prediction)
+                                llc_predictions.append(llc_prediction)
+
+                        with open(f'saved/results/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
+                            pck.dump([model_predictions, llc_predictions, mean_squared_error(model_predictions, llc_predictions, squared=False)], file)
+                    except:
+                        print('No file for: ', sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
 #
-#                        except:
-#                            pass
-#                        with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
-#                            pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
-#    with open('saved/PHM08_results.pck', 'wb') as file:
-#        pck.dump([model_predictions, chilli_predictions, llc_predictions], file)
-#    plot_results2()
-
-
-#    with open('saved/feature_ensembles.pck', 'rb') as file:
-#        feature_ensembles = pck.load(file)
-#    plot_all_clustering(feature_ensembles)
 
 
 
