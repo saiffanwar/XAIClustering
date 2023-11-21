@@ -139,66 +139,73 @@ def run_clustering(model, x_test,y_pred, features, discrete_features, search_num
 
 
 def compare_parameters(parameter_search):
-    sparsity_threshold=0
-    sparsitys = []
-    coverages = []
-    starting_ks = []
-    neighbourhoods = []
+#    sparsitys = []
+#    coverages = []
+#    starting_ks = []
+#    neighbourhoods = []
     rmses = []
-    for coverage_threshold in parameter_search[sys.argv[1]]['coverage']:
-        for starting_k in parameter_search[sys.argv[1]]['starting_k']:
-            for neighbourhood_threshold in parameter_search[sys.argv[1]]['neighbourhood']:
-                try:
-                    with open(f'saved/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'rb') as file:
-                        model_predictions, llc_predictions, rmse = pck.load(file)
-                    coverages.append(coverage_threshold)
-                    starting_ks.append(starting_k)
-                    neighbourhoods.append(neighbourhood_threshold)
-                    rmses.append(rmse)
+    results = []
+    missing_results = []
+    i=0
+    sparsitys = {v: [] for v in parameter_search['sparsity']}
+    coverages = {v: [] for v in parameter_search['coverage']}
+    starting_ks = {v: [] for v in parameter_search['starting_k']}
+    neihgbourhoods = {v: [] for v in parameter_search['neighbourhood']}
 
-                    print(f'{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold} = {rmse}')
-                except:
-                    print('no file')
+    for sparsity_threshold in parameter_search['sparsity']:
+        for coverage_threshold in parameter_search['coverage']:
+            for starting_k in parameter_search['starting_k']:
+                for neighbourhood_threshold in parameter_search['neighbourhood']:
 
-    fig, ax = plt.subplots()
-    im = ax.imshow([rmses,rmses], cmap='hot', interpolation='nearest')
-#
-#    fig = go.Figure(data=[go.Surface(z=coverages, x=starting_ks, y=rmses)])
-#    fig.update_layout(title=f'Sparsity = {sparsity_threshold}', autosize=False,
-#                      width=500, height=500,
-#                      margin=dict(l=65, r=50, b=65, t=90))
-    plt.show()
-#    with open('saved/feature_ensembles.pck', 'rb') as file:
-#        feature_ensembles = pck.load(file)
-#    plot_all_clustering(feature_ensembles)
+                    if not os.path.exists(f'saved/feature_ensembles/PHM08_feature_ensembles_full_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck'):
+                        missing_results.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
+                    else:
+                        with open(f'saved/results/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'rb') as file:
+                            model_predictions, llc_predictions, rmse = pck.load(file)
+                            i+=1
+#                        sparsitys.append(sparsity_threshold)
+#                        coverages.append(coverage_threshold)
+#                        starting_ks.append(starting_k)
+#                        neighbourhoods.append(neighbourhood_threshold)
+                        rmses.append(rmse)
+                        results.append([[sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold], rmse])
+    selected_params = {v: [] for v in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']}
+    for fix1 in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']:
+        for fix2 in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']:
+            comparing_params = [t for t in ['sparsity', 'coverage', 'starting_k', 'neighbourhood'] if t not in [fix1, fix2]]
+            if fix1 != fix2:
+                for i in parameter_search[fix1]:
+                    selected_params[fix1] = i
+                    for j in parameter_search[fix2]:
+                        selected_params[fix2] = j
+                        results = []
+                        for k in parameter_search[comparing_params[0]]:
+                            row = []
+                            selected_params[comparing_params[0]] = k
+                            for l in parameter_search[comparing_params[1]]:
+                                selected_params[comparing_params[1]] = l
+                                with open(f"saved/results/PHM08_results_{selected_params['sparsity']}_{selected_params['coverage']}_{selected_params['starting_k']}_{selected_params['neighbourhood']}.pck", 'rb') as file:
+                                    model_predictions, llc_predictions, rmse = pck.load(file)
+                                    row.append(rmse)
+                            results.append(row)
+
+                        print(comparing_params[0], comparing_params[1], np.shape(np.array(results)))
+
+
+
+
+
+
+
+
+    print(len(missing_results), i)
+    with open('saved/missing_results.pck', 'wb') as file:
+        pck.dump(missing_results, file)
 
 
 if __name__ == '__main__':
-    x_train, x_test, y_train, y_test, features = data_preprocessing()
+    mode = sys.argv[2]
 
-    discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
-    with open(f'saved/PHM08_model.pck', 'rb') as file:
-        model = pck.load(file)
-
-    R = np.random.RandomState(42)
-    random_samples = R.randint(2, len(x_test), 5000)
-
-    x_train = x_train[random_samples]
-    y_train = y_train[random_samples]
-#    model = train(x_train, y_train)
-    y_pred = evaluate(model, x_test, y_test)
-
-    x_test = x_test[random_samples]
-    y_pred = y_pred[random_samples]
-    y_test = y_test[random_samples]
-#    GLE.plot_all_clustering()
-
-#    parameter_search = {
-#                        'sparsity': [0, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1],
-#                        'coverage': [0, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1],
-#                        'starting_k': [1,5,10,20],
-#                        'neighbourhood': [0.01, 0.05, 0.1, 0.25, 0.5, 1],
-#                        }
 
     parameter_search = {'1':{
                         'sparsity': [0],
@@ -229,36 +236,77 @@ if __name__ == '__main__':
                         'starting_k': [1,5,10],
                         'neighbourhood': [0.05, 0.1, 0.5],
                         }}
-#    compare_parameters(parameter_search)
+    parameter_search = {'sparsity': [0, 0.05, 0.5, 1],
+                        'coverage': [0, 0.05, 0.5, 1],
+                        'starting_k': [1,5,10],
+                        'neighbourhood': [0.05, 0.1, 0.5],
+                        }
 
-#    parameter_search_list = []
-#    instances = [4292, 4942, 3164, 2133, 4468, 2858, 4789, 2266, 3833, 873]
-    for sparsity_threshold in parameter_search[sys.argv[1]]['sparsity']:
-        for coverage_threshold in parameter_search[sys.argv[1]]['coverage']:
-            for starting_k in parameter_search[sys.argv[1]]['starting_k']:
-                for neighbourhood_threshold in parameter_search[sys.argv[1]]['neighbourhood']:
-                    parameter_search_list.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
+    if mode == 'results':
+        compare_parameters(parameter_search)
+    elif mode == 'ensembles' or 'explain':
+        x_train, x_test, y_train, y_test, features = data_preprocessing()
 
+        discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
+        with open(f'saved/PHM08_model.pck', 'rb') as file:
+            model = pck.load(file)
+
+        R = np.random.RandomState(42)
+        random_samples = R.randint(2, len(x_test), 5000)
+
+        x_train = x_train[random_samples]
+        y_train = y_train[random_samples]
+        #    model = train(x_train, y_train)
+        y_pred = evaluate(model, x_test, y_test)
+
+        x_test = x_test[random_samples]
+        y_pred = y_pred[random_samples]
+        y_test = y_test[random_samples]
+
+        parameter_search_list = []
+        for sparsity_threshold in parameter_search['sparsity']:
+            for coverage_threshold in parameter_search['coverage']:
+                for starting_k in parameter_search['starting_k']:
+                    for neighbourhood_threshold in parameter_search['neighbourhood']:
+                        parameter_search_list.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
+        num_nodes = 4
+        tasks_per_node = len(parameter_search_list)/num_nodes
+#        parameter_search_list = parameter_search_list[sys.argv[1]-1*tasks_per_node:sys.argv[1]*tasks_per_node]
+        with open('saved/missing_results.pck', 'rb') as file:
+            parameter_search_list = pck.load(file)
+        print(parameter_search_list, len(parameter_search_list))
+
+        for params in parameter_search_list:
+            sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold = params
+
+            if mode == 'ensembles':
+                process = multiprocessing.Process(target=run_clustering, args=(model, x_test, y_pred, features, discrete_features,  parameter_search_list.index(params), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
+                process.start()
+
+            elif mode=='explain':
+                #    instances = [2773, 4123, 2006, 3291, 902, 2173, 3043, 967, 883, 3187]
+                instances = random.choices(np.arange(len(x_test)), k=10)
+                if os.path.exists(f'saved/feature_ensembles/PHM08_feature_ensembles_full_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck'):
                     model_predictions = []
                     chilli_predictions = []
                     llc_predictions = []
-#                    process = multiprocessing.Process(target=run_clustering, args=(model, x_test, y_pred, features, discrete_features,  len(parameter_search_list), sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold))
-#                    process.start()
-                    try:
-                        GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=True)
-                        for instance in instances:
-                                print(f'--------- Instance  = {instance} ----------')
+#                try:
+                    GLE = GlobalLinearExplainer(model=model, x_test=x_test, y_pred=y_pred, features=features, dataset='PHM08', sparsity_threshold=sparsity_threshold, coverage_threshold=coverage_threshold, starting_k=starting_k, neighbourhood_threshold=neighbourhood_threshold, preload_explainer=True)
+                    for instance in instances:
+                            print(f'--------- Instance  = {instance} ----------')
 #                            _,_, chilli_prediction = chilli_explain(model, instance=instance)
-                                llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
-                                model_predictions.append(y_pred[instance])
+                            llc_prediction, fig = GLE.generate_explanation(x_test[instance], instance, y_pred[instance], y_test[instance])
+                            model_predictions.append(y_pred[instance])
 #                            chilli_predictions.append(chilli_prediction)
-                                llc_predictions.append(llc_prediction)
+                            llc_predictions.append(llc_prediction)
 
-                        with open(f'saved/results/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
-                            pck.dump([model_predictions, llc_predictions, mean_squared_error(model_predictions, llc_predictions, squared=False)], file)
-                    except:
-                        print('No file for: ', sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
-#
+                    with open(f'saved/results/PHM08_results_{sparsity_threshold}_{coverage_threshold}_{starting_k}_{neighbourhood_threshold}.pck', 'wb') as file:
+                        pck.dump([model_predictions, llc_predictions, mean_squared_error(model_predictions, llc_predictions, squared=False)], file)
+                else:
+                    missing_results.append([sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold])
+                    print('No file for: ', sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold)
+
+
 
 
 

@@ -112,10 +112,10 @@ class GlobalLinearExplainer():
         discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
         # XDs, WDs, neighbourhoodDs
         distance_weights={'x': 1, 'w': 1, 'neighbourhood': 1}
-        for i in tqdm(range(len(features))):
-            print(f'{search_num} ^')
+        for i in range(len(features)):
+            print(f'{search_num}: {i} out of {len(features)}')
 #        for i in range(6,8):
-            print(f'--------{features[i]} ({i} out of {len(features)})---------')
+#            print(f'--------{features[i]} ({i} out of {len(features)})---------')
             all_feature_clusters = []
             all_feature_linear_params = []
             feature_xs = x_test[:, i]
@@ -127,7 +127,7 @@ class GlobalLinearExplainer():
                 K=1
 
             for super_cluster in np.unique(cluster_assignments):
-                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
+#                print(f'--------{super_cluster} out of {len(np.unique(cluster_assignments))}---------')
                 super_cluster_x_indices = np.array(np.argwhere(cluster_assignments == super_cluster)).flatten()
                 super_cluster_xs = feature_xs[super_cluster_x_indices]
                 super_cluster_y_pred = y_pred[super_cluster_x_indices]
@@ -184,7 +184,8 @@ class GlobalLinearExplainer():
                         instance_cluster_ranges.append(cluster_ranges[j])
                         range_found = True
 
-
+            if not range_found:
+                print(cluster_ranges, data_instance[i])
         cluster_matches, local_x, local_y_pred = self.find_cluster_matches(data_instance, instance_cluster_ranges)
 #        if self.plotting==True:
 #            fig, axes = plt.subplots(1, 1, figsize=(10, 5))
