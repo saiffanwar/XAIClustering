@@ -168,12 +168,15 @@ def compare_parameters(parameter_search):
 #                        starting_ks.append(starting_k)
 #                        neighbourhoods.append(neighbourhood_threshold)
                         rmses.append(rmse)
-                        results.append([[sparsity_threshold, coverage_threshold, starting_k, neighbourhood_threshold], rmse])
+    min_rmse = min(rmses)
+    max_rmse = max(rmses)
+
     selected_params = {v: [] for v in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']}
     for fix1 in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']:
         for fix2 in ['sparsity', 'coverage', 'starting_k', 'neighbourhood']:
-            comparing_params = [t for t in ['sparsity', 'coverage', 'starting_k', 'neighbourhood'] if t not in [fix1, fix2]]
             if fix1 != fix2:
+                comparing_params = [t for t in ['sparsity', 'coverage', 'starting_k', 'neighbourhood'] if t not in [fix1, fix2]]
+                fig, axes = plt.subplots(len(parameter_search[fix1]), len(parameter_search[fix2]), figsize=(20, 20))
                 for i in parameter_search[fix1]:
                     selected_params[fix1] = i
                     for j in parameter_search[fix2]:
@@ -188,9 +191,21 @@ def compare_parameters(parameter_search):
                                     model_predictions, llc_predictions, rmse = pck.load(file)
                                     row.append(rmse)
                             results.append(row)
-
-                        print(comparing_params[0], comparing_params[1], np.shape(np.array(results)))
-
+                        results = np.array(results)
+                        for xpos in range(len(parameter_search[comparing_params[0]])):
+                            for ypos in range(len(parameter_search[comparing_params[1]])):
+                                text = axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].text(ypos, xpos, round(results[xpos][ypos], 1),
+                                               ha = "center", va = "center", color = "w")
+                        im = axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].imshow(results, vmin=min_rmse, vmax=max_rmse, cmap='viridis')
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_title(f'{fix1}={i}, {fix2}={j}')
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_xticks(range(len(parameter_search[comparing_params[1]])))
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_yticks(range(len(parameter_search[comparing_params[0]])))
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_xticklabels(parameter_search[comparing_params[1]])
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_yticklabels(parameter_search[comparing_params[0]])
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_xlabel(comparing_params[1])
+                        axes[parameter_search[fix1].index(i), parameter_search[fix2].index(j)].set_ylabel(comparing_params[0])
+                fig.colorbar(im, ax=axes.ravel().tolist())
+                fig.savefig(f'Figures/PHM08/parameter_search/comparing_{comparing_params[0]}_{comparing_params[1]}.pdf')
 
 
 
