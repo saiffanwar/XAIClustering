@@ -10,28 +10,31 @@ from pprint import pprint
 
 class CHILLI():
 
-    def __init__(self, model, x_train, y_train, x_test, y_test, features, newMethod=True, automated_locality=False):
+    def __init__(self, dataset, model, x_train, y_train, y_train_pred, x_test, y_test, y_test_pred, features, newMethod=True, automated_locality=False):
+        self.dataset = dataset
         self.model = model
         # These should be scaled numpy arrays
         self.x_train = x_train
         self.y_train = y_train
+        self.y_train_pred = y_train_pred
         self.x_test = x_test
-        self.y_pred = model.predict(x_test)
         self.y_test = y_test
+        self.y_test_pred = y_test_pred
         self.features = features
         self.newMethod = newMethod
         self.automated_locality = automated_locality
 
 
-    def build_explainer(self, categorical_features=None, kernel_width=10, mode='regression'):
+    def build_explainer(self, categorical_features=None, kernel_width=None, mode='regression'):
 #        The explainer is built herem on the training data with the features and type of model specified.
-        y_hat_test = self.model.predict(self.x_test)
-        explainer = lime_tabular.LimeTabularExplainer(self.x_train, test_data=self.x_test, test_labels=self.y_test, test_predictions=y_hat_test, automated_locality=self.automated_locality, feature_names=self.features, categorical_features=categorical_features, mode=mode, verbose=True, kernel_width=kernel_width)
+#        y_hat_test = self.model.predict(self.x_test)
+        explainer = lime_tabular.LimeTabularExplainer(self.x_train, test_data=self.x_test, test_labels=self.y_test, test_predictions=self.y_test_pred, automated_locality=self.automated_locality, feature_names=self.features, categorical_features=categorical_features, mode=mode, verbose=True, kernel_width=kernel_width)
         return explainer
 
-    def make_explanation(self, explainer, instance, num_features=25, num_samples=1000):
+    def make_explanation(self, predictor, explainer, instance, num_features=25, num_samples=1000):
         ground_truth = self.y_test[instance]
-        predictor = self.model.predict
+        if self.dataset == 'PHM08':
+            predictor = self.model.predict
         instance_prediction = predictor(self.x_test[instance].reshape(1,-1))[0]
         exp, local_model, perturbations, model_perturbation_predictions, exp_perturbation_predictions = explainer.explain_instance(self.x_test[instance], instance_num=instance, predict_fn=predictor, num_features=num_features, num_samples=num_samples, newMethod=self.newMethod)
         self.local_model = local_model
@@ -40,11 +43,35 @@ class CHILLI():
         explanation_error = mean_squared_error(model_perturbation_predictions, exp_perturbation_predictions, squared=False)
         exp.intercept = self.local_model.intercept_
 
-        print('\n-----------------------')
-        print(f'Ground Truth: {ground_truth}')
-        print(f'Model Prediction: { instance_prediction }')
-        print(f'CHILLI prediction: { exp_instance_prediction }')
+#        print(f'Ground Truth: {ground_truth}')
+#        print(f'Model Prediction: { instance_prediction }')
+
+        if self.newMethod:
+            print(f'CHILLI prediction: { exp_instance_prediction }')
+        else:
+            print(f'LIME prediction: { exp_instance_prediction }')
         return exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, explanation_error, instance_prediction, exp_instance_prediction
+
+    def exp_sorter(self, exp_list, features):
+
+        explained_features = [i[0] for i in exp_list]
+        for e in explained_features:
+            if len(e.split('=')) >1:
+                explained_features[explained_features.index(e)] = e.split('=')[0]
+
+        feature_contributions = {f:[] for f in features}
+        contributions = [e[1] for e in exp_list]
+
+        explained_feature_indices = [features.index(i) for i in explained_features]
+        for f in features:
+            for num, e in enumerate(explained_features):
+                if e == f:
+#                    sorted_exp.append(e[1])
+                    feature_contributions[f].append(contributions[explained_features.index(e)])
+        sorted_exp = [feature_contributions[f][0] for f in features]
+
+        return sorted_exp
+
 
     def plot_explanation(self, instance, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature):
         exp_list = exp.as_list()
@@ -58,7 +85,6 @@ class CHILLI():
         # Plot the explanation
         all_features = self.features
         explained_features = [i[0] for i in exp_list][:12]
-
         explained_feature_indices = [all_features.index(i) for i in explained_features]
         explained_feature_perturbations = np.array(perturbations)[:,explained_feature_indices]
         perturbations = explained_feature_perturbations
@@ -135,20 +161,30 @@ class CHILLI():
         fig.savefig(f'Figures/CHILLI/{instance}_explanation_{suffix}.pdf', bbox_inches='tight')
 
 
-    def interactive_perturbation_plot(self, instance, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature):
+    def interactive_perturbation_plot(self, instance, exp, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature, neighbours=None):
 
         exp_list = exp.as_list()
-        explained_features = [i[0] for i in exp_list]
-#        all_features = ['cycle', 'setting1', 'setting2', 'setting3', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17', 's18', 's19', 's20', 's21']
-        all_features = self.features
-        unsorted_instance = perturbations[0]
-        explained_feature_indices = [all_features.index(i) for i in explained_features]
-        explained_feature_perturbations = np.array(perturbations)[:,explained_feature_indices]
-        explained_features_x_test = np.array(self.x_test)[:,explained_feature_indices]
-        perturbations = explained_feature_perturbations
-        feature_contributions = [i[1] for i in exp_list]
+#        explained_features = [i[0] for i in exp_list]
+##        all_features = ['cycle', 'setting1', 'setting2', 'setting3', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17', 's18', 's19', 's20', 's21']
+#        all_features = self.features
+#        unsorted_instance = perturbations[0]
+#        explained_feature_indices = []
+#        for i in range(len(explained_features)):
+#            for j in range(len(explained_features)):
+#                if all_features[j] in explained_features[i]:
+#                    explained_feature_indices.append(j)
+#                    break
+#
+##        explained_feature_indices = [all_features.index(i) for i in explained_features]
+#        explained_feature_perturbations = np.array(perturbations)[:,explained_feature_indices]
+#        explained_features_x_test = np.array(self.x_test)[:,explained_feature_indices]
+#        perturbations = explained_feature_perturbations
+#        feature_contributions = [i[1] for i in exp_list]
 
-
+        feature_contributions = self.exp_sorter(exp_list, self.features)
+        explained_features = self.features
+        explained_features_x_test = self.x_test
+#
         instance_x, instance_model_y, instance_exp_y = np.array(perturbations[0]), int(np.array(model_perturbation_predictions[0])), int(np.array(exp_perturbation_predictions[0]))
         perturbations_x, perturbations_model_y, perturbations_exp_y = np.array(perturbations[1:]), np.array(model_perturbation_predictions[1:]), np.array(exp_perturbation_predictions[1:])
         perturbations_model_y = [int(i) for i in perturbations_model_y]
@@ -169,15 +205,15 @@ class CHILLI():
         colours = ['green' if x>= 0 else 'red' for x in feature_contributions]
 
         # Plot convergence of error as features are added
-        exp_convergence = []
-        for included_features in range(len(explained_features)):
-            intercept = exp.intercept
-            for i in range(included_features):
-                intercept+= feature_contributions[i]*instance_x[i]
-
-            exp_convergence.append(intercept)
-
-        fig.add_trace(go.Scatter(x=[num for num in range(len(exp_convergence))], y=exp_convergence, mode='lines', marker = dict(color='orange', size=3), showlegend=False), row=1, col=1)
+#        exp_convergence = []
+#        for included_features in range(len(explained_features)):
+#            intercept = exp.intercept
+#            for i in range(included_features):
+#                intercept+= feature_contributions[i]*instance_x[i]
+#
+#            exp_convergence.append(intercept)
+#
+#        fig.add_trace(go.Scatter(x=[num for num in range(len(exp_convergence))], y=exp_convergence, mode='lines', marker = dict(color='orange', size=3), showlegend=False), row=1, col=1)
 
 
         # Plot explanation bar chart
@@ -185,13 +221,16 @@ class CHILLI():
 
         axes = [[row, col] for row in range(2,num_rows+1) for col in range(1,num_cols+1)]
 
-        for i in range(len(all_features)):
+#        for n in range(len(neighbours)):
+#            neighbours[n] = [neighbours[n][i] for i in explained_feature_indices]
+#
+        for i in range(len(self.features)):
 #        fig.add_trace(go.Scatter(x=perturbations_x[:,i],y=perturbations_exp_y, mode='markers', marker = dict(color='orange', size=3)), row=ax[0], col=ax[1])
             if i==0:
                 showlegend=True
             else:
                 showlegend=False
-            fig.add_trace(go.Scatter(x=explained_features_x_test[:,i],y=self.y_pred,
+            fig.add_trace(go.Scatter(x=explained_features_x_test[:,i],y=self.y_test_pred,
                                      mode='markers', marker = dict(color='lightgrey', size=3, opacity=0.9),
                                      showlegend=showlegend, name='Test data'),
                           row=axes[i][0], col=axes[i][1])
@@ -207,18 +246,22 @@ class CHILLI():
                                      mode='markers', marker = dict(color='red', size=20),
                                      showlegend=showlegend, name='Instance being explained'),
                           row=axes[i][0], col=axes[i][1])
+            fig.add_trace(go.Scatter(x=[instance_x[i]],y=[exp.local_model.predict(instance_x.reshape(1,-1))],
+                                     mode='markers', marker = dict(color='blue', size=10, opacity=0.9),
+                                     showlegend=showlegend, name='Explanation (g) predictions for perturbations'),
+                          row=axes[i][0], col=axes[i][1])
 
 
         fig.update_layout(title=dict(text = f' Explanation for instance {instance} <br> Explanation Error = {explanation_error:.2f} <br> Model Instance Prediction {instance_model_y} <br> Explanation Instance Prediction {instance_exp_y}', y=0.99, x=0),
                           font=dict(size=14),
                           legend=dict(yanchor="top", y=1.1, xanchor="right"),
-                          height=250*num_rows, )
+                          height=300*num_rows, )
         if self.automated_locality == True and self.newMethod == True:
-            suffix = '_newCHILLI'
+            suffix = 'LLC'
         elif self.automated_locality == False and self.newMethod == True:
             suffix = '_CHILLI'
         elif self.automated_locality == False and self.newMethod == False:
             suffix = '_LIME'
         else:
             suffix = ''
-        fig.write_html(f'Figures/PHM08/Explanations/instance_{instance}{suffix}_explanation.html', auto_open=False)
+        fig.write_html(f'Figures/{self.dataset}/Explanations/instance_{instance}{suffix}_explanation.html', auto_open=False)

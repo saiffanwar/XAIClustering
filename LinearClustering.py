@@ -41,11 +41,11 @@ class LinearClustering():
     ''' This class clusters a dataset into regions of linearity. It is provided a distance matrix computed in the LocalLinearRegression class.
     This distance matrix is based on the local linear models of each point as well as the raw distance values. '''
 
-    def __init__(self, x, y, D, xDs, feature, K,
+    def __init__(self, dataset, super_cluster, x, y, D, xDs, feature, K,
                 sparsity_threshold,
-                similarity_threshold,
                 coverage_threshold,
-                gaps_threshold):
+                gaps_threshold
+                ):
 
         self.x = x
         self.y = y
@@ -58,23 +58,28 @@ class LinearClustering():
         self.K = K
         self.init_K = K
         self.sparsity_threshold = sparsity_threshold
-        self.similarity_threshold = similarity_threshold
+#        self.similarity_threshold = similarity_threshold
         self.coverage_threshold = coverage_threshold
-        self.gaps_threshold = gaps_threshold
-        self.plotting=False
+#        self.gaps_threshold = gaps_threshold
+        self.gaps_threshold=None
+        self.dataset = dataset
+        self.super_cluster = super_cluster
+        self.plotting=True
 
         # Clear folder for figures to show evolution of clustering.
-        if os.path.isdir(f'Figures/Clustering/OptimisedClusters/{self.feature_name}'):
+        if os.path.isdir(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}'):
             pass
         else:
-            os.makedirs(f'Figures/Clustering/OptimisedClusters/{self.feature_name}')
+            os.makedirs(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}')
 
-        files = glob.glob(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/*')
+        files = glob.glob(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/*')
         for f in files:
             os.remove(f)
 
     def find_gaps(self, x=None):
         '''Find gaps in the data and do not cluster across these gaps'''
+        if self.gaps_threshold == None:
+            return []
         x = np.sort(x)
         if len(np.unique(x)) > 1:
             all_x_differences = [x[i+1]-x[i] for i in range(len(x)-1)]
@@ -124,11 +129,10 @@ class LinearClustering():
         new_clustering_cost = None
 #        init_clusters = True
         recluster = True
-        self.gaps = self.find_gaps(self.x)
-
+#        self.gaps = self.find_gaps(self.x)
+        print(f'Clustering {self.feature_name} with K={K} clusters.')
         if not self.plotting:
             fig=None
-
         while iter < num_iterations and recluster == True:
 
             if init_clusters == True:
@@ -146,7 +150,6 @@ class LinearClustering():
                         minimum_distances.append(min([i[j] for j in medoids]))
                         closest = np.argmin([i[j] for j in medoids])
                         clustered_data[closest].append(index)
-
                 _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
                 init_clusters = False
 
@@ -157,7 +160,7 @@ class LinearClustering():
             if len(clustered_data) == 1:
                 if self.plotting:
                     fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-                    fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/final_{K}.pdf', bbox_inches='tight')
+                    fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/final_{K}.pdf', bbox_inches='tight')
                 clustered_datapoints = self.cluster_indices_to_datapoints(clustered_data)
                 return clustered_datapoints, medoids, linear_params, clustering_cost, fig
             iter+=1
@@ -165,7 +168,7 @@ class LinearClustering():
 
         if self.plotting:
             fig = self.plotMedoids(clustered_data, medoids, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/before_verifying_{K}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/before_verifying_{K}.pdf', bbox_inches='tight')
 
         changes = [True]
         while any(changes):
@@ -179,7 +182,7 @@ class LinearClustering():
 
         if self.plotting:
             fig = self.plotMedoids(self.clustered_data, self.medoids, self.linear_params, self.clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_verifying_{K}_merged_to_{len(self.clustered_data)}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/after_verifying_{K}_merged_to_{len(self.clustered_data)}.pdf', bbox_inches='tight')
 
         # If the number of clusters has changed, pick new medoids from the same clusters and optimise further.
         if len(self.clustered_data) < K:
@@ -189,9 +192,9 @@ class LinearClustering():
         else:
             if self.plotting:
                 fig = self.plot_final_clustering(self.clustered_data, self.linear_params)
-                fig.write_html(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/final_{K}.html')
+                fig.write_html(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/final_{K}.html')
                 fig = self.plotMedoids(self.clustered_data, self.medoids, self.linear_params, self.clustering_cost)
-                fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/final_{K}.pdf', bbox_inches='tight')
+                fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/final_{K}.pdf', bbox_inches='tight')
             clustered_datapoints = self.cluster_indices_to_datapoints(self.clustered_data)
             return clustered_datapoints, self.medoids, self.linear_params, self.clustering_cost, fig
 
@@ -202,7 +205,6 @@ class LinearClustering():
 
         changes = []
         clustered_data = self.order_clusters(clustered_data)
-
         if len(clustered_data) != 1:
             pre_clustered_data = deepcopy(clustered_data)
             clustered_data = self.check_cluster_gaps(clustered_data)
@@ -211,12 +213,11 @@ class LinearClustering():
                 changes.append(True)
             else:
                 changes.append(False)
-            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
         if self.plotting:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_separating_gaps_{time.time()}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/after_separating_gaps_{time.time()}.pdf', bbox_inches='tight')
 
-#        print('Post Gaps Check K = ', len(clustered_data))
 
         if len(clustered_data) != 1:
             # Check if neighbouring clusters overlap.
@@ -227,10 +228,10 @@ class LinearClustering():
                 changes.append(True)
             else:
                 changes.append(False)
-            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
         if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_checking_overlaps_{time.time()}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/after_checking_overlaps_{time.time()}.pdf', bbox_inches='tight')
 
 #            print('Post overlap Check K = ', len(clustered_data))
 
@@ -243,25 +244,25 @@ class LinearClustering():
                 changes.append(True)
             else:
                 changes.append(False)
-            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
         if self.plotting == True:
             fig = self.plotMedoids(clustered_data, None, linear_params, clustering_cost)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_checking_sparsity_{time.time()}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/after_checking_sparsity_{time.time()}.pdf', bbox_inches='tight')
 
 
         if len(clustered_data) != 1 and False:
         # Check if parameters of neighbouring clusters models are similar. If they are similar, merge them.
             pre_clustered_data = deepcopy(clustered_data)
             clustered_data = self.check_cluster_similarity(clustered_data, linear_params)
-            # Check if satisfying this constraint has changed the clustering.
+            # Check if satisfying this constraint h{self.dataset}/as changed the clustering.
             if pre_clustered_data != clustered_data:
                 changes.append(True)
             else:
                 changes.append(False)
-            _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
+        _, linear_params, clustering_cost = self.calc_cluster_models(self.x, self.y, clustered_data)
         if self.plotting:
             fig = self.plotMedoids(clustered_data, None, linear_params, None)
-            fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/after_similarity_merge_{time.time()}.pdf', bbox_inches='tight')
+            fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/after_similarity_merge_{time.time()}.pdf', bbox_inches='tight')
 
 #        print('Post similarity Check K = ', len(clustered_data))
 
@@ -307,8 +308,9 @@ class LinearClustering():
         # Reset clustered data for new clustsering.
         new_clustered_data = [[new_med] for new_med in new_medoids]
         for index,i in enumerate(self.D):
-            closest = np.argmin([i[j] for j in new_medoids])
-            new_clustered_data[closest].append(index)
+            if index not in new_medoids:
+                closest = np.argmin([i[j] for j in new_medoids])
+                new_clustered_data[closest].append(index)
 
         _,new_linear_params, new_clustering_cost = self.calc_cluster_models(self.x, self.y, new_clustered_data)
 
@@ -427,7 +429,7 @@ class LinearClustering():
                 axes[1].plot(x1, line2_interp_x1, color='blue', alpha=0.5)
                 axes[1].plot(x2, line1_interp_x2, color='red', alpha=0.5)
 
-                fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/similarity_{i}_{i+1}_{time.time()}.pdf', bbox_inches='tight')
+                fig.savefig(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/similarity_{i}_{i+1}_{time.time()}.pdf', bbox_inches='tight')
             else:
                 new_clustering.append(clustered_data[i+1])
                 new_linear_params.append(next_cluster_params)
@@ -540,24 +542,34 @@ class LinearClustering():
                 coverage = abs(max(clustered_datapoints[i][0]) - max(clustered_datapoints[i-1][0]))
             else:
                 coverage = abs(min(clustered_datapoints[i+1][0]) - min(clustered_datapoints[i][0]))
+            coverage = coverage/data_x_range
 
             if sparsity < self.sparsity_threshold:
                 suffix = 'sparsity'
             elif coverage < self.coverage_threshold:
                 suffix = 'coverage'
-
-            if (sparsity < self.sparsity_threshold) or (coverage < self.coverage_threshold):
-
+#            if (sparsity < self.sparsity_threshold) or (coverage < self.coverage_threshold):
+#                print(self.sparsity_threshold, self.coverage_threshold)
+#                print(suffix, sparsity, coverage)
+#
+#                print([len(cluster) for cluster in new_clustering])
 #                fig, axes = plt.subplots(1,3, figsize=(20*0.39,4*0.39))
 #                axes[0].scatter(self.x[new_clustering[i]], self.y[new_clustering[i]], color='blue', s=1)
+                # If first or last cluster
                 if i == 0 or new_clustering[i-1] == []:
+                    # if last cluster:
                     if i ==len(new_clustering)-1:
+                        # make j the cluster second to last
                         j = i-1
+                        # If the second to last is empty then pick the one before
                         while new_clustering[j] == []:
                             j -= 1
-                        temp_clustering = new_clustering[j] + new_clustering[i]
-                        if len(self.find_gaps(self.x[temp_clustering])) == 0:
-                            new_clustering[j] = new_clustering[j] + new_clustering[i]
+                        # If all until j=-1 are empty (newclustering[-1] which is the last element) then skip
+                        if j != -1:
+                            temp_clustering = new_clustering[j] + new_clustering[i]
+                            if len(self.find_gaps(self.x[temp_clustering])) == 0:
+                                new_clustering[j] = new_clustering[j] + new_clustering[i]
+                                new_clustering[i] = []
 #                        axes[0].scatter(self.x[new_clustering[j]], self.y[new_clustering[j]], color='red', s=1)
                     else:
 #                        axes[0].scatter(self.x[new_clustering[i+1]], self.y[new_clustering[i+1]], color='red', s=1)
@@ -601,9 +613,10 @@ class LinearClustering():
 #                    axes[2].scatter(self.x[tempNewClustering2[i+1]], self.y[tempNewClustering2[i+1]], color='green', s=1)
 #                    axes[2].set_title(f'Clustering Cost = {cost2:.4f}')
 
-                    if cost1 <= cost2 and len(clustering_1_gaps) == 0:
+                    if cost1 <= cost2  == 0 and len(clustering_1_gaps) == 0:
                         new_clustering = deepcopy(tempNewClustering1)
                     elif len(clustering_2_gaps) == 0:
+#                    else:
                         new_clustering = deepcopy(tempNewClustering2)
 
 
@@ -621,7 +634,7 @@ class LinearClustering():
 #                    axes[ax].set_yticklabels('')
 #
 #                fig.savefig(f'Figures/Clustering/OptimisedClusters/{self.feature_name}/{suffix}_{i}_{time.time()}.pdf', bbox_inches='tight')
-
+#        print([len(cluster) for cluster in new_clustering])
         clustered_data = [cluster for cluster in new_clustering if cluster != []]
 
         return clustered_data
@@ -715,7 +728,7 @@ class LinearClustering():
 #            colour = colours[i]
             axes[0].scatter(clustered_data[i][0], clustered_data[i][1], s=1, marker='o', c=colour, label='_nolegend_')
             cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
-            axes[0].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
+            axes[0].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -10, 40, color=colour, label='_nolegend_')
             axes[0].plot(cluster_range, w*cluster_range+b, linewidth=0.5, c=colour)
         if clustering_cost:
             axes[0].set_title(f'K-Medoids clustering of LLR models into {len(clustered_data)} clusters \n  Clustering Cost: {clustering_cost:.2f}', fontsize=11)

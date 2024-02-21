@@ -7,6 +7,10 @@ from scipy.special import softmax
 import pickle as pck
 from pprint import pprint
 
+
+euclideanFeatures = ['heathrow cld_ttl_amt_id', 'heathrow cld_base_ht', 'heathrow visibility', 'heathrow msl_pressure', 'y', 'dewpoint', 'heathrow rltv_hum', 'heathrow wind_speed', 'heathrow air_temperature', 'heathrow prcp_amt']
+cyclicFeatures = ['Date', 'heathrow wind_direction']
+
 # Cyclic features are calculated with distances going in a circle.
 def cyclic(x1, x2, possValues):
     x1, x2 = [x*len(possValues) for x in [x1,x2]]
@@ -30,6 +34,8 @@ def calcSingleDistance(instanceValue, perturbValue, feature, maxVal, possVal):
 #        distance = cyclic(instanceValue, perturbValue, possVal)
     if len(possVal) == 2:
         distance = binary(instanceValue, perturbValue)
+    elif any(f in feature for f in cyclicFeatures):
+        distance = cyclic(instanceValue, perturbValue, possVal)
     else:
         distance = abs(instanceValue - perturbValue)/maxVal
     return distance

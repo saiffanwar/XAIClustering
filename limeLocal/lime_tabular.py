@@ -29,7 +29,7 @@ import random
 import pandas as pd
 import matplotlib.pyplot as plt
 import pickle as pck
-# from midasDistances import *
+#from midasDistances import *
 from limeLocal.distances import *
 import time
 import cProfile as profile
@@ -268,8 +268,8 @@ class LimeTabularExplainer(object):
         if kernel_width is None:
             kernel_width = np.sqrt(training_data.shape[1]) * .75
             # kernel_width = 0.75
+        print("Kernel Width: ", kernel_width)
         kernel_width = float(kernel_width)
-        print("kernel_width", kernel_width)
         if kernel is None:
             def kernel(d, kernel_width):
                 return np.sqrt(np.exp(-(d ** 2) / kernel_width ** 2))
@@ -376,6 +376,7 @@ class LimeTabularExplainer(object):
         else:
             perturbations, inverse = self.__data_inverse(data_row, num_samples=num_samples, sampling_method=sampling_method)
             perturbations = inverse
+
 
         ''' ###################### CHANGE HERE FOR DISTANCE CALCULATION CUSTOMISATION ######################'''
 
@@ -520,7 +521,7 @@ class LimeTabularExplainer(object):
 
 
         for label in labels:
-            (local_model,
+            (ret_exp.local_model,
              ret_exp.intercept[label],
              ret_exp.local_exp[label],
              ret_exp.score[label],
@@ -541,7 +542,7 @@ class LimeTabularExplainer(object):
             ret_exp.local_exp[1] = [x for x in ret_exp.local_exp[0]]
             ret_exp.local_exp[0] = [(i, -1 * j) for i, j in ret_exp.local_exp[1]]
 
-        return ret_exp, local_model, perturbations, perturbation_predictions, ret_exp.allexpPreds
+        return ret_exp, ret_exp.local_model, perturbations, perturbation_predictions, ret_exp.allexpPreds
 
     def __data_inverse(self,
                        data_row,
