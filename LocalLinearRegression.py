@@ -21,12 +21,16 @@ class LocalLinearRegression():
     The current neighbourhood is set to 5% of the maximum distance.
     '''
     def __init__(self, x,y, dist_function):
+        self.feature_type = dist_function
+        print(self.feature_type)
         self.x = x
         self.y = y
         self.N = len(x)
-        self.CR = CyclicRegression()
-        if dist_function == 'Euclidean':
+        self.CR = CyclicRegression(boundary=max(self.x))
+        if dist_function == 'Linear':
             self.dist_function = self.euclideanDefine()
+        elif dist_function == 'Cyclic':
+            self.dist_function = self.CR.cyclic_distance
         elif dist_function == 'Time':
             self.dist_function = self.timeDiff
 
@@ -77,7 +81,7 @@ class LocalLinearRegression():
 #        Calculate distances between all points so can reuse later.
         self.pointwiseDistance(self.x, self.y)
         self.neighbourhoods = []
-        for i in range(self.N):
+        for i in tqdm(range(self.N)):
             check = [self.xDs_norm[i][j]<neighbourhood_threshold for j in range(self.N)]
             localxdata = list(compress(self.x, check))
             localydata = list(compress(self.y, check))
@@ -86,10 +90,16 @@ class LocalLinearRegression():
             if i ==0:
                 self.first_point_neighbours = [localxdata, localydata]
             X = np.array([localxdata, np.ones(len(localxdata))]).T
-            wlocal = np.linalg.lstsq(X, localydata, rcond=1)[0]
-            w1.append(wlocal[0])
-            w2.append(wlocal[1])
-            w.append(wlocal)
+            if self.feature_type == 'Linear':
+                wlocal = np.linalg.lstsq(X, localydata, rcond=1)[0]
+                w1.append(wlocal[0])
+                w2.append(wlocal[1])
+                w.append(wlocal)
+            elif self.feature_type == 'Cyclic':
+                m, c = self.CR.cyclicRegression(localxdata, localydata)
+                w1.append(m)
+                w2.append(c)
+                w.append([m, c])
 
 #           LLR plotting for individual points
 #            if i%10 ==0:
@@ -103,6 +113,8 @@ class LocalLinearRegression():
 #                plt.plot(xrange, ys, c='green', linewidth=5)
 #                plt.savefig('Figures/LocalModels/housingLinearRegression{}.png'.format(i))
 
+#            plt.scatter(self.x, self.y, s= self.xDs_norm[i]*100)
+#            plt.show()
 #            for circular regression uncomment the following:
 
 #            preds, m, c = self.CR.cyclicRegression(localxdata, localydata)
@@ -135,7 +147,7 @@ class LocalLinearRegression():
             maxNeighbourhood, minNeighbourhood = np.max(self.neighbourhoods), np.min(self.neighbourhoods)
             neighbourhood_norm = np.array(list(map(lambda x: normalise(maxNeighbourhood, minNeighbourhood, x), neighbourhoodDs))).reshape(self.N, self.N)
 
-            for i in range(self.N):
+            for i in tqdm(range(self.N)):
                 for j in range(self.N):
                     distance = distance_weights['x']*self.xDs_norm[i,j] + distance_weights['w']*wDs_norm[i,j] +  distance_weights['neighbourhood']*neighbourhood_norm[i,j]
                     D[i,j] = distance

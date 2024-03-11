@@ -657,11 +657,15 @@ class LimeTabularExplainer(object):
         y_test = self.test_labels
         y_pred = self.test_predictions
 
-        x_test = x_test[:2000]
-        y_pred = y_pred[:2000]
+#        x_test = x_test[:2000]
+#        y_pred = y_pred[:2000]
 
         # Start the list of perturbations with the instance being perturbed as first item
         perturbedData = [instance]
+
+
+        profiler = profile.Profile()
+        profiler.enable()
 
         distances = combinedFeatureDistances(calcAllDistances(instance, x_test, features))
 
@@ -675,153 +679,64 @@ class LimeTabularExplainer(object):
 #            D, xDs= LLR.compute_distance_matrix(w, MSE, distance_weights=distance_weights, instance=instance_num)
 
         # Reduce the range of the training data set to only include the same clusters as the instance. But all points should be points which satisfy all of the clusters.
-        if self.automated_locality == True:
-
-
-
-            K=10
-            distance_weights=[1,1,0]
-
-            self.feature_ensembles = pck.load(open(f'saved/feature_ensembles_K{K}_{distance_weights[0]}_{distance_weights[1]}.pck', 'rb'))
-            cluster_ranges = [self.feature_ensembles[f][2] for f in features]
-            each_feature_clustered_data = [self.feature_ensembles[f][0] for f in features]
-            instance_cluster_ranges = []
-            instance_clusters = []
-#            pprint(list(zip(features, instance, cluster_ranges)))
-
-            # Get the cluster ranges and the cluster datapoints for the instance
-            included_features = [f for f in features]
-            for i, feature in enumerate(features):
-                for j, cluster in enumerate(cluster_ranges[i]):
-                    if cluster[0] <= instance[i] <= cluster[1]:
-                        instance_cluster_ranges.append(cluster)
-                        instance_clusters.append(each_feature_clustered_data[i][j])
-                        included_features.remove(feature)
-                        break
-#            print(included_features)
-#            fig, axes = plt.subplots(int(np.ceil(len(features)/2)), 2, figsize=(10, 28))
-#            plt.subplots_adjust(left=0.1,
-#                            bottom=0.1,
-#                            right=0.9,
-#                            top=0.9,
-#                            wspace=0.2,
-#                            hspace=0.4)
-#            ax = fig.get_axes()
-#            colours = [np.random.rand(1,3) for i in range(20)]
-#
-#            for f, key in enumerate(self.feature_ensembles.keys()):
-#                clustered_data, linear_params, cluster_x_ranges = self.feature_ensembles[key]
-##                ax[f].set_xlim(min([ranges[0] for ranges in cluster_x_ranges[f]])*1.2, max([ranges[1] for ranges in cluster_x_ranges[f]])*1.2)
-#                ax[f].scatter(x_test[:,f], y_pred, s=1, marker='o', c='green', label='_nolegend_', alpha=0.9)
-#                ax[f].scatter(instance_clusters[f][0], instance_clusters[f][1], s=1, marker='o', c='black', label='_nolegend_', alpha=0.9)
-#                for i in range(len(clustered_data)):
-#                    w,b = linear_params[i]
-##            colours.append(colour)
-#                    colour = colours[i]
-##                    cluster_range = np.linspace(min(clustered_data[i][0]), max(clustered_data[i][0]), 100)
-##                    ax[f].vlines([min(clustered_data[i][0]), max(clustered_data[i][0])], -20, 20, color=colour, label='_nolegend_')
-##                    ax[f].plot(cluster_range, w*cluster_range+b, linewidth=1, c=colour)
-#
-#                ax[f].set_title(key)
-#
-#            fig.savefig('Figures/exp_ensembles.pdf', bbox_inches='tight')
-
-
-            reduced_x_test = []
-            for x in x_test:
-                for f in range(len(features)):
-                    if instance_cluster_ranges[f][0] <= x[f] <= instance_cluster_ranges[f][1]:
-                        reduced_x_test.append(x)
-                        break
-
-#            # From the test data, fetch all the points that fall within the clusters.
-            reduced_x_test_dict = {f: [] for f in self.feature_ensembles.keys()}
-            for f, key in enumerate(self.feature_ensembles.keys()):
-                for x in x_test:
-                    if instance_cluster_ranges[f][0] <= x[f] <= instance_cluster_ranges[f][1]:
-                        reduced_x_test_dict[key].append(x[f])
-
-
-            weights=[1 for d in distances]
-
-            # Define some information needed for later:
-            dict_x_test = {} # Seperate training data into lists of feature data
-            for f, feature in enumerate(features):
-                dict_x_test[feature] = [i[f] for i in x_test]
-            discreteFeatures = features
-            maxVals = [max(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to normalise euclidean distances.
-            possValues = [np.unique(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to caculate cyclic distances.
-
-            # Calculate distances and weights to assign probabilities when selecting point for interpolation.
-            # Distance is calculated in each feature dimension.
-            # Loop for number of perturbations required
-#        while len(perturbedData) <= num_samples+1:
-            for i in range(num_samples):
-                perturbation = np.zeros(len(features))
-                # Remaining features starts as list of all features to be reduced later.
-                remainingFeatures = copy.deepcopy(features)
-
-                interpolationAmount = random.uniform(0,1)
-
-                for i, f in enumerate(reduced_x_test_dict.keys()):
-                    selectedPoint = random.choice(reduced_x_test_dict[f])
-                    perturbation[i] = selectedPoint
-                # Once all features have been perturbed, add the perturbation to the list of perturbations.
-                perturbedData.append(perturbation)
-        else:
-            weights = [self.kernel_fn(d) for d in distances]
+        weights = [self.kernel_fn(d) for d in distances]
 #            weights = D
 #            weights = [d for d in distances]
 
-            # Define some information needed for later:
-            dict_x_test = {} # Seperate training data into lists of feature data
-            for f, feature in enumerate(features):
-                dict_x_test[feature] = [i[f] for i in x_test]
-            discreteFeatures = features
-            maxVals = [max(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to normalise euclidean distances.
-            possValues = [np.unique(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to caculate cyclic distances.
+        # Define some information needed for later:
+        dict_x_test = {} # Seperate training data into lists of feature data
+        for f, feature in enumerate(features):
+            dict_x_test[feature] = [i[f] for i in x_test]
+        discreteFeatures = features
+        maxVals = [max(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to normalise euclidean distances.
+        possValues = [np.unique(val) for val in [dict_x_test[f] for f in dict_x_test.keys()]] # Needed to caculate cyclic distances.
+        unique_vals = [np.unique(dict_x_test[f]) for f in features] # Needed to calculate cyclic distances.
 
-            # Calculate distances and weights to assign probabilities when selecting point for interpolation.
-            # Distance is calculated in each feature dimension.
-            # Loop for number of perturbations required
+        # Calculate distances and weights to assign probabilities when selecting point for interpolation.
+        # Distance is calculated in each feature dimension.
+        # Loop for number of perturbations required
 #        while len(perturbedData) <= num_samples+1:
-            for i in range(num_samples):
-                perturbation = np.zeros(len(features))
-                # Remaining features starts as list of all features to be reduced later.
-                remainingFeatures = copy.deepcopy(features)
+        for i in range(num_samples):
+            perturbation = np.zeros(len(features))
+            # Remaining features starts as list of all features to be reduced later.
+            remainingFeatures = copy.deepcopy(features)
 
-                interpolationAmount = random.uniform(0,1)
-                selectedPoint = random.choices(x_test, weights=weights, k=1)[0]
+            interpolationAmount = random.uniform(0,1)
+            selectedPoint = random.choices(x_test, weights=weights, k=1)[0]
 
-                # While all features have not been perturbed
-                while len(remainingFeatures) != 0:
-                    # Select a random feature which is yet to be perturbed
-                    selectedFeature = random.choice(remainingFeatures)
-                    selectedFeatureIndex = features.index(selectedFeature)
+            # While all features have not been perturbed
+            while len(remainingFeatures) != 0:
+                # Select a random feature which is yet to be perturbed
+                selectedFeature = random.choice(remainingFeatures)
+                selectedFeatureIndex = features.index(selectedFeature)
 
-                    # Get the value of that feature in the isntance
-                    instance_value = instance[selectedFeatureIndex]
+                # Get the value of that feature in the isntance
+                instance_value = instance[selectedFeatureIndex]
 
-                    # Select a random training data sample based with probability based on the distance to the instance.
-                    # selectedValue = random.choices((dict_x_test[selectedFeature]), weights=weights, k=1)[0]
-                    selectedValue = selectedPoint[selectedFeatureIndex]
-                    # Select a random value between 0 and 1 and adjust the instance value accordingly.
-                    interpolationDifference = interpolationAmount*(selectedValue - instance_value)
-                    interpolatedValue = instance_value+interpolationDifference
+                # Select a random training data sample based with probability based on the distance to the instance.
+                # selectedValue = random.choices((dict_x_test[selectedFeature]), weights=weights, k=1)[0]
+                selectedValue = selectedPoint[selectedFeatureIndex]
+                # Select a random value between 0 and 1 and adjust the instance value accordingly.
+                interpolationDifference = interpolationAmount*(selectedValue - instance_value)
+                interpolatedValue = instance_value+interpolationDifference
 
-                    # For cyclic features, if interpolated value is in fact further, interpolate in the other direction.
-                    if calcSingleDistance(instance_value, selectedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]) < calcSingleDistance(instance_value, interpolatedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]):
-                        interpolatedValue = instance_value-interpolationAmount
+                # For cyclic features, if interpolated value is in fact further, interpolate in the other direction.
+                if calcSingleDistance(instance_value, selectedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]) < calcSingleDistance(instance_value, interpolatedValue, selectedFeature, maxVals[selectedFeatureIndex], possValues[selectedFeatureIndex]):
+                    interpolatedValue = instance_value-interpolationAmount
 
-                    # If selected feature is discrete, adjust the interpolation so it takes the closest existing value.
-                    if selectedFeature in discreteFeatures:
-                        interpolatedValue = min(np.unique(dict_x_test[selectedFeature]), key=lambda x:abs(x-interpolatedValue))
-                    # Mark the working feature as perturbed by removing from the list of features yet to be perturbed.
-                    remainingFeatures.remove(selectedFeature)
-                    perturbation[selectedFeatureIndex] = interpolatedValue
+                # If selected feature is discrete, adjust the interpolation so it takes the closest existing value.
+                if selectedFeature in discreteFeatures:
+                    interpolatedValue = min(unique_vals[selectedFeatureIndex], key=lambda x:abs(x-interpolatedValue))
+                # Mark the working feature as perturbed by removing from the list of features yet to be perturbed.
+                remainingFeatures.remove(selectedFeature)
+                perturbation[selectedFeatureIndex] = interpolatedValue
 
-                # Once all features have been perturbed, add the perturbation to the list of perturbations.
-                perturbedData.append(perturbation)
+            # Once all features have been perturbed, add the perturbation to the list of perturbations.
+            perturbedData.append(perturbation)
+
+        profiler.disable()
+#        stats = pstats.Stats(profiler).sort_stats('cumulative')
+#        stats.print_stats()
 
         return perturbedData
 

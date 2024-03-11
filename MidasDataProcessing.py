@@ -28,18 +28,18 @@ class MidasDataProcessing():
 
     def fetchData(self, location='heathrow'):
         # print('DATA FETCHED')
-        df2020 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_weather_2020.csv', skiprows =280, skipfooter=1, engine='python')
-        rain_2020 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_rain_2020.csv', skiprows =61, skipfooter=1, engine='python')
+        df2020 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_weather_2020.csv', skiprows =280, skipfooter=1, engine='python')
+        rain_2020 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_rain_2020.csv', skiprows =61, skipfooter=1, engine='python')
         df2020 = df2020[self.availableFeatures]
         df2020['prcp_amt'] = rain_2020['prcp_amt']
 
-        df2021 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_weather_2021.csv', skiprows =280, skipfooter=1, engine='python')
-        rain_2021 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_rain_2021.csv', skiprows =61, skipfooter=1, engine='python')
+        df2021 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_weather_2021.csv', skiprows =280, skipfooter=1, engine='python')
+        rain_2021 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_rain_2021.csv', skiprows =61, skipfooter=1, engine='python')
         df2021 = df2021[self.availableFeatures]
         df2021['prcp_amt'] = rain_2021['prcp_amt']
 
-        df2022 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_weather_2022.csv', skiprows =280, skipfooter=1, engine='python')
-        rain_2022 = pd.read_csv(os.getcwd()+'/DATA/MIDAS/'+location+'_rain_2022.csv', skiprows =61, skipfooter=1, engine='python')
+        df2022 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_weather_2022.csv', skiprows =280, skipfooter=1, engine='python')
+        rain_2022 = pd.read_csv(os.getcwd()+'/Data/MIDAS/'+location+'_rain_2022.csv', skiprows =61, skipfooter=1, engine='python')
         df2022 = df2022[self.availableFeatures]
         df2022['prcp_amt'] = rain_2022['prcp_amt']
 
@@ -81,6 +81,8 @@ class MidasDataProcessing():
     def train_val_test_split(self, df, target_col, test_ratio):
         val_ratio = test_ratio / (1 - test_ratio)
         X, y = self.feature_label_split(df, target_col)
+        self.all_x = X.to_numpy()
+        self.all_y = y.to_numpy()
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_ratio, shuffle=False)
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_ratio, shuffle=False)
         return X_train, X_val, X_test, y_train, y_val, y_test

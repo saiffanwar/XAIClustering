@@ -41,7 +41,6 @@ def plot_results2():
         results = pck.load(file)
     model_predictions, llc_predictions, chilli_predictions = results[0], results[1], results[2]
     fig, axes = plt.subplots(1,1, figsize=(8, 4))
-    print(len(chilli_predictions))
     for instance in range(len(model_predictions)):
         axes.scatter([instance], [model_predictions[instance]], c='r', s=30, marker='x')
         axes.scatter([instance], [chilli_predictions[instance]], c='b', s=20, marker='x')

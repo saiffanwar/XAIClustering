@@ -3,6 +3,7 @@ import numpy as np
 from LocalLinearRegression import LocalLinearRegression
 from  LinearClustering import LinearClustering
 from sklearn.linear_model import LinearRegression
+import sys
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -11,6 +12,7 @@ plt.rcParams.update({
 
 inch = 0.39
 
+plt.style.use('seaborn')
 
 def LR(x, y):
     x = np.array(x).reshape(-1,1)
@@ -85,16 +87,16 @@ all_xs = [item for sublist in all_xs for item in sublist]
 all_ys = [item for sublist in all_ys for item in sublist]
 
 m, c =  LR(all_xs,all_ys)
-axes.plot(all_xs, [m*i+c for i in all_xs], color='red', linewidth=2, linestyle='--')
+axes.plot(all_xs, [m*i+c for i in all_xs], color='firebrick', linewidth=2, linestyle='--')
 
 m, c =  LR(x1,y1)
-axes.plot(x1, [m*i+c for i in x1], color='green', linewidth=2, linestyle='--')
+axes.plot(x1, [m*i+c for i in x1], color='salmon', linewidth=2, linestyle='--')
 axes.set_xlabel(r'$x_1$', fontsize=11)
 axes.set_ylabel(r'$\hat{y}$')
-axes.scatter(x1[5],y1[5], s=30, c='orange', edgecolors='black', zorder=5)
+axes.scatter(x1[5],y1[5], s=30, c='red', edgecolors='black', zorder=5)
 
 
-fig.savefig('Figures/GeneralFeature.pdf', bbox_inches='tight')
+fig.savefig(f'Figures/GeneralFeature{sys.argv[1]}.pdf', bbox_inches='tight')
 
 
 fig, axes = plt.subplots(1,1, figsize=(9*inch, 4*inch))
@@ -122,6 +124,7 @@ m, c =  LR(x,y)
 axes.plot(x, [m*i+c for i in x], color='green', linewidth=2, linestyle='--')
 axes.scatter(x[10],y[10], s=30, c='green', edgecolors='black', zorder=5)
 axes.set_xlabel(r'$x_2$', fontsize=11)
+axes.set_ylabel(r'$\hat{y}$')
 
 
 

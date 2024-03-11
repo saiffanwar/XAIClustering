@@ -30,11 +30,8 @@ plt.rcParams.update({
 })
 
 
-def LR(x, y):
-    x = np.array(x).reshape(-1,1)
-    y = np.array(y)
-    reg = LinearRegression().fit(x, y)
-    return reg.coef_, reg.intercept_
+
+
 
 class LinearClustering():
 
@@ -44,7 +41,8 @@ class LinearClustering():
     def __init__(self, dataset, super_cluster, x, y, D, xDs, feature, K,
                 sparsity_threshold,
                 coverage_threshold,
-                gaps_threshold
+                gaps_threshold,
+                feature_type='Linear'
                 ):
 
         self.x = x
@@ -64,9 +62,11 @@ class LinearClustering():
         self.gaps_threshold=None
         self.dataset = dataset
         self.super_cluster = super_cluster
+        self.feature_type = feature_type
         self.plotting=True
 
         # Clear folder for figures to show evolution of clustering.
+
         if os.path.isdir(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}'):
             pass
         else:
@@ -75,6 +75,17 @@ class LinearClustering():
         files = glob.glob(f'Figures/{self.dataset}/Clustering/OptimisedClusters/{self.feature_name}/{self.super_cluster}/*')
         for f in files:
             os.remove(f)
+
+    def LR(self, x, y):
+        if self.feature_type == 'Linear':
+            x = np.array(x).reshape(-1,1)
+            y = np.array(y)
+            reg = LinearRegression().fit(x, y)
+            return reg.coef_, reg.intercept_
+        elif self.feature_type == 'Cyclic':
+            CR = CyclicRegression(boundary=max(self.x))
+            m, c = CR.cyclicRegression(x, y)
+            return m, c
 
     def find_gaps(self, x=None):
         '''Find gaps in the data and do not cluster across these gaps'''
@@ -365,11 +376,6 @@ class LinearClustering():
         If the gradient of neighbouring models is similar (based on some defined threshold), the clusters
         are merged.
         '''
-        def LR(x, y):
-            x = np.array(x).reshape(-1,1)
-            y = np.array(y)
-            reg = LinearRegression().fit(x, y)
-            return reg.coef_, reg.intercept_
 
 #        new_clustering = deepcopy(clustered_data)
 #        removed = []
@@ -392,10 +398,10 @@ class LinearClustering():
                 fig, axes = plt.subplots(1,3, figsize=(18*0.39,4*0.39))
 
                 axes[0].scatter(self.x[new_clustering[i]], self.y[new_clustering[i]], s=1, color='red', label=f'Cluster {i}')
-                m, c = LR(self.x[new_clustering[i]], self.y[new_clustering[i]])
+                m, c = self.LR(self.x[new_clustering[i]], self.y[new_clustering[i]])
                 axes[0].plot(self.x[new_clustering[i]], m*self.x[new_clustering[i]]+c, color='red', linewidth=0.5)
                 axes[0].scatter(self.x[clustered_data[i+1]], self.y[clustered_data[i+1]], s=1, color='blue', label=f'Cluster {i+1}')
-                m, c = LR(self.x[clustered_data[i+1]], self.y[clustered_data[i+1]])
+                m, c = self.LR(self.x[clustered_data[i+1]], self.y[clustered_data[i+1]])
                 axes[0].plot(self.x[clustered_data[i+1]], m*self.x[clustered_data[i+1]]+c, color='blue', linewidth=0.5)
                 temp = new_clustering[i] + clustered_data[i+1]
                 if len(self.find_gaps(self.x[temp])) == 0:
@@ -406,10 +412,10 @@ class LinearClustering():
 
                 # Recalculate the parameters for the single cluster. Need to find the new datapoints first.
                 xs, ys = self.cluster_indices_to_datapoints(new_clustering[i+1])
-                new_linear_params.append(LR(xs, ys))
+                new_linear_params.append(self.LR(xs, ys))
 
                 axes[2].scatter(self.x[new_clustering[i+1]], self.y[new_clustering[i+1]], s=1, color='blue', label=f'Cluster {i}')
-                m, c = LR(self.x[new_clustering[i+1]], self.y[new_clustering[i+1]])
+                m, c = self.LR(self.x[new_clustering[i+1]], self.y[new_clustering[i+1]])
                 axes[2].plot(self.x[new_clustering[i+1]], m*self.x[new_clustering[i+1]]+c, color='blue', linewidth=0.5)
 
                 for ax in [0,1,2]:
@@ -676,8 +682,9 @@ class LinearClustering():
 
             cluster_x = cluster[0]
             cluster_y = cluster[1]
-            w,b = LR(cluster_x, cluster_y)
+            w,b = self.LR(cluster_x, cluster_y)
             cluster_pred = [w*x+b for x in cluster_x]
+            print(cluster_x, cluster_y, cluster_pred)
             cluster_error = mean_squared_error(cluster_y, cluster_pred, squared=False)
             [ys.append(y) for y in cluster_y]
             [preds.append(pred) for pred in cluster_pred]
@@ -692,11 +699,6 @@ class LinearClustering():
         '''
 
         clustered_datapoints = self.cluster_indices_to_datapoints(clustered_data)
-        def LR(x, y):
-            x = np.array(x).reshape(-1,1)
-            y = np.array(y)
-            reg = LinearRegression().fit(x, y)
-            return reg.coef_, reg.intercept_
 
         linear_params = []
         clusterPreds = []
@@ -705,7 +707,7 @@ class LinearClustering():
 #            For cyclic features uncomment the following:
 #            preds, w, b = self.CR.cyclicRegression(clustered_datapoints[i][0], clustered_datapoints[i][1])
             if len(clustered_datapoints[i][0]) > 0 and len(clustered_datapoints[i][1]) > 0:
-                w,b = LR(clustered_datapoints[i][0], clustered_datapoints[i][1])
+                w,b = self.LR(clustered_datapoints[i][0], clustered_datapoints[i][1])
                 linear_params.append([float(w),b])
         clustered_data = [cluster for cluster in clustered_data if cluster != []]
         return clustered_data, linear_params, self.calculate_clustering_cost(clustered_data)
@@ -755,26 +757,4 @@ class LinearClustering():
             fig.add_trace(go.Scatter(x=cluster_range, y=w*cluster_range+b, mode='lines', line=dict(color=colour, width=5)))
         fig.update_layout(title=f'K-Medoids clustering of LLR models into {len(clustered_data)} clusters \n  Clustering Cost: {cost:.2f}')
         return fig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

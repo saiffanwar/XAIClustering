@@ -5,14 +5,12 @@ from torch import nn
 from MidasDataProcessing import MidasDataProcessing
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error
-from tqdm import tqdm_notebook
 from datetime import datetime
-from ipywidgets import IntProgress
 import matplotlib.lines as mlines
 
 
 is_cuda = torch.cuda.is_available()
-is_cuda = False
+#is_cuda = False
 if is_cuda:
     device = torch.device("cuda")
     print("GPU is available")
@@ -76,7 +74,7 @@ class Optimization:
     def train(self, train_loader, val_loader, batch_size=64, n_epochs=50, n_features=1):
         model_path = f'saved/models/MIDAS_model.pck'
 
-        for epoch in tqdm_notebook(range(1, n_epochs + 1)):
+        for epoch in range(1, n_epochs + 1):
             batch_losses = []
             for x_batch, y_batch in train_loader:
                 if x_batch.shape[0] == batch_size:

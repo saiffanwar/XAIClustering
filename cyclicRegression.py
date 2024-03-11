@@ -15,49 +15,46 @@ class CyclicRegression():
     def __init__(self, boundary=96):
         self.boundary =  boundary
 
-    def cyclic(self, x1, x2, possValues=96):
+    def cyclic_distance(self, x1, x2):
+        poss_values = self.boundary
         diff = abs(x1-x2)
-        return min(possValues - diff, diff)
+        distance = min(poss_values - diff, diff)
+        return distance
 
 
-    def rotateData(self, xdata, rotation=10, boundary=96):
+    def rotateData(self, xdata, rotation=10):
         rotatedXdata = []
         for x in xdata:
-            if (x+rotation) >= boundary:
-                rotatedX = (x+rotation)-boundary
+            if (x+rotation) >= self.boundary:
+                rotatedX = (x+rotation)-self.boundary
                 rotatedXdata.append(rotatedX)
             else:
                 rotatedXdata.append(x+rotation)
         return rotatedXdata
 
-    def checkBoundary(self, xdata, boundary=96):
+    def checkBoundary(self, xdata):
         for x in xdata:
             diff = abs(xdata[0] - x)
-            if (96-diff) < diff:
+            if (self.boundary-diff) < diff:
                 return True
         return False
 
     def findClusterEdges(self, xdata):
-        diffs = list(map(self.cyclic, [xdata[0]]*len(xdata), xdata))
+        diffs = list(map(self.cyclic_distance, [xdata[0]]*len(xdata), xdata))
         firstEdge = xdata[diffs.index(max(diffs))]
 
-        diffs = list(map(self.cyclic, [firstEdge]*len(xdata), xdata))
+        diffs = list(map(self.cyclic_distance, [firstEdge]*len(xdata), xdata))
         secondEdge = xdata[diffs.index(max(diffs))]
         return min(firstEdge, secondEdge), max(firstEdge, secondEdge)
 
-    def shiftCluster(self, xdata, firstEdge, secondEdge, boundary=96):
-        print(firstEdge, secondEdge)
+    def shiftCluster(self, xdata, firstEdge, secondEdge):
         shiftedX = []
-        def rotate(l, n):
-            return l[n:] + l[:n]
 
-        rotatedXdata = rotate(xdata, boundary-secondEdge)
         for x in xdata:
             if x>=secondEdge:
                 shiftedX.append(x-secondEdge)
             else:
-                shiftedX.append(x+(boundary-secondEdge))
-        pprint(list(zip(xdata, rotatedXdata, shiftedX)))
+                shiftedX.append(x+(self.boundary-secondEdge))
         return shiftedX
 
     def LinReg(self, featureData, ydata):
@@ -91,7 +88,7 @@ class CyclicRegression():
 #        axes.scatter(xdata, ys, color='red', linewidth=5)
 #        axes.set_xlim(0,96)
 #        fig.savefig('rotatedSamples.pdf')
-        return preds, m, c
+        return m, c
 
     def rotateCyclicData(self, xdata, ydata):
         for i in range(len(features)):

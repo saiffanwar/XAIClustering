@@ -7,14 +7,16 @@ from scipy.special import softmax
 import pickle as pck
 from pprint import pprint
 
-euclideanFeatures = ['heathrow cld_ttl_amt_id', 'heathrow cld_base_ht', 'heathrow visibility', 'heathrow msl_pressure', 'heathrow y', 'heathrow dewpoint', 'heathrow rltv_hum', 'heathrow wind_speed', 'heathrow air_temperature', 'heathrow prcp_amt']
+euclideanFeatures = ['heathrow cld_ttl_amt_id', 'heathrow cld_base_ht', 'heathrow visibility', 'heathrow msl_pressure', 'heathrow y', 'heathrow dewpoint', 'heathrow rltv_hum', 'heathrow wind_speed', 'heathrow air_temperature', 'heathrow prcp_amt', 'setting1', 'setting2', 'setting3', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17', 's18', 's19', 's20', 's21']
+
+#euclidean_features_2
 cyclicFeatures = ['Date', 'wind_direction']
 
 # Cyclic features are calculated with distances going in a circle.
-def cyclic(x1, x2, possValues):
-    x1, x2 = [x*len(possValues) for x in [x1,x2]]
+def cyclic(x1, x2, max_val):
+#    x1, x2 = [x*len(possValues) for x in [x1,x2]]
     diff = abs(x1-x2)
-    return min(len(possValues) - diff, diff)
+    return min(max_val - diff, diff)
 
 # Binary features are distanced as 0 or 1
 def binary(instance, perturbation):
@@ -31,7 +33,7 @@ def calcSingleDistance(instanceValue, perturbValue, feature, maxVal, possVal):
     #     distance = binary(instanceValue, perturbValue)
     # These features are cyclic features
     if any(f in feature for f in cyclicFeatures):
-        distance = cyclic(instanceValue, perturbValue, possVal)
+        distance = cyclic(instanceValue, perturbValue, maxVal)
     return distance
 
 # Function to calculate distances per feature for a full set of data. Returns a dictionary of distances with feature keys.
@@ -55,7 +57,8 @@ def calcAllDistances(instance, perturbations, features):
         # These features are cyclic features.
         if any(f in feature for f in cyclicFeatures):
             possVal = possVals[f]
-            distances[feature] = [cyclic(instance[f], i[f], possVal) for i in perturbations]
+            max_val = maxVals[f]
+            distances[feature] = [cyclic(instance[f], i[f], max_val) for i in perturbations]
     return distances
 
 
@@ -108,4 +111,15 @@ def combinedFeatureDistances(distances):
     combinedDistances = [np.mean(i) for i in zip(*allDistances)]
 
     return combinedDistances
+
+
+def pointwiseDistance(x1, x2, features):
+    distances = []
+    for i, f in enumerate(features):
+        if f in euclideanFeatures:
+            distances.append(abs(x1[i] - x2[i]))
+        if f in cyclicFeatures:
+            distances.append(cyclic(x1[i], x2[i], 1))
+
+    return np.mean(distances)
 

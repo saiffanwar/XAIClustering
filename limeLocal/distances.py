@@ -7,15 +7,16 @@ from scipy.special import softmax
 import pickle as pck
 from pprint import pprint
 
+euclideanFeatures = ['heathrow cld_ttl_amt_id', 'heathrow cld_base_ht', 'heathrow visibility', 'heathrow msl_pressure', 'heathrow y', 'heathrow dewpoint', 'heathrow rltv_hum', 'heathrow wind_speed', 'heathrow air_temperature', 'heathrow prcp_amt', 'setting1', 'setting2', 'setting3', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17', 's18', 's19', 's20', 's21']
 
-euclideanFeatures = ['heathrow cld_ttl_amt_id', 'heathrow cld_base_ht', 'heathrow visibility', 'heathrow msl_pressure', 'y', 'dewpoint', 'heathrow rltv_hum', 'heathrow wind_speed', 'heathrow air_temperature', 'heathrow prcp_amt']
-cyclicFeatures = ['Date', 'heathrow wind_direction']
+#euclidean_features_2
+cyclicFeatures = ['Date', 'wind_direction']
 
 # Cyclic features are calculated with distances going in a circle.
-def cyclic(x1, x2, possValues):
-    x1, x2 = [x*len(possValues) for x in [x1,x2]]
+def cyclic(x1, x2, max_val):
+#    x1, x2 = [x*len(possValues) for x in [x1,x2]]
     diff = abs(x1-x2)
-    return min(len(possValues) - diff, diff)
+    return min(max_val - diff, diff)
 
 # Binary features are distanced as 0 or 1
 def binary(instance, perturbation):
@@ -24,26 +25,21 @@ def binary(instance, perturbation):
 # Function to calculate the distance between 2 values for a single feature
 def calcSingleDistance(instanceValue, perturbValue, feature, maxVal, possVal):
     # These features are calculated as a euclidean distance normalised by the maximum possible value.
-#    if feature in ['Ordinal Date', '0 - 520 cm', '521  - 660 cm', '661 - 1160 cm', '1160+ cm', 'Avg mph', 'Letters in Day']:
-#        distance = abs(instanceValue - perturbValue)/maxVal
-#    # These features are binary features.
-#    elif feature in ['Bank Holiday', 'Weekend', 'Monday', 'Morning', 'Afternoon', 'Evening', 'Night']:
-#        distance = binary(instanceValue, perturbValue)
-#    # These features are cyclic features
-#    elif feature in ['Time Interval', 'Day']:
-#        distance = cyclic(instanceValue, perturbValue, possVal)
-    if len(possVal) == 2:
-        distance = binary(instanceValue, perturbValue)
-    elif any(f in feature for f in cyclicFeatures):
-        distance = cyclic(instanceValue, perturbValue, possVal)
-    else:
+    # if feature in ['cld_ttl_amt_id', 'cld_base_ht', 'visibility', 'msl_pressure', 'y', 'dewpoint', 'rltv_hum', 'wind_speed']:
+    if any(f in feature for f in euclideanFeatures):
         distance = abs(instanceValue - perturbValue)/maxVal
+    # These features are binary features.
+    # elif feature in ['Bank Holiday', 'Weekend', 'Monday', 'Morning', 'Afternoon', 'Evening', 'Night']:
+    #     distance = binary(instanceValue, perturbValue)
+    # These features are cyclic features
+    if any(f in feature for f in cyclicFeatures):
+        distance = cyclic(instanceValue, perturbValue, maxVal)
     return distance
 
 # Function to calculate distances per feature for a full set of data. Returns a dictionary of distances with feature keys.
-def calcAllDistances(instance, datapoints, features):
+def calcAllDistances(instance, perturbations, features):
     # Seperated data by features.
-    featureSeperatedData = [[p[f] for p in datapoints] for f in range(len(features))]
+    featureSeperatedData = [[p[f] for p in perturbations] for f in range(len(features))]
     # Calculates information needed for some distance metrics.
     maxVals = [max(val) for val in featureSeperatedData]
     possVals = [np.unique(val) for val in featureSeperatedData]
@@ -51,23 +47,18 @@ def calcAllDistances(instance, datapoints, features):
     distances = {}
     for f, feature in enumerate(features):
         # These features are calculated as a euclidean distance normalised by the maximum possible value.
-#        if feature in ['Ordinal Date', '0 - 520 cm', '521  - 660 cm', '661 - 1160 cm', '1160+ cm', 'Avg mph', 'Letters in Day']:
-#            maxVal = maxVals[f]
-#            euclidean = lambda num2 : abs(instance[f]-num2)/maxVal
-#            distances[feature] = list(map(euclidean, featureSeperatedData[f]))
-#        # These features are binary features.
-#        elif feature in ['Bank Holiday', 'Weekend', 'Monday', 'Morning', 'Afternoon', 'Evening', 'Night']:
-#            distances[feature] = [binary(instance[f], i) for i in featureSeperatedData[f]]
-#        # These features are cyclic features.
-#        elif feature in ['Time Interval', 'Day']:
-#            possVal = possVals[f]
-#            distances[feature] = [cyclic(instance[f], i, possVal) for i in feauteSeperatedData[f]
-        if len(np.unique(featureSeperatedData[f])) == 2:
-            distances[feature] = [binary(instance[f], i) for i in featureSeperatedData[f]]
-        else:
+        if any(f in feature for f in euclideanFeatures):
             maxVal = maxVals[f]
             euclidean = lambda num2 : abs(instance[f]-num2)/maxVal
-            distances[feature] = list(map(euclidean, [i[f] for i in datapoints]))
+            distances[feature] = list(map(euclidean, [i[f] for i in perturbations]))
+        # # These features are binary features.
+        # elif feature in ['Bank Holiday', 'Weekend', 'Monday', 'Morning', 'Afternoon', 'Evening', 'Night']:
+        #     distances[feature] = [binary(instance[f], i[f]) for i in perturbations]
+        # These features are cyclic features.
+        if any(f in feature for f in cyclicFeatures):
+            possVal = possVals[f]
+            max_val = maxVals[f]
+            distances[feature] = [cyclic(instance[f], i[f], max_val) for i in perturbations]
     return distances
 
 
@@ -111,6 +102,7 @@ def distanceToWeightsList(distances):
 
 
 def combinedFeatureDistances(distances):
+
     allDistances = []
     for feature in distances.keys():
         normaliser = lambda dist : dist/sum(distances[feature])
@@ -119,4 +111,15 @@ def combinedFeatureDistances(distances):
     combinedDistances = [np.mean(i) for i in zip(*allDistances)]
 
     return combinedDistances
+
+
+def pointwiseDistance(x1, x2, features):
+    distances = []
+    for i, f in enumerate(features):
+        if f in euclideanFeatures:
+            distances.append(abs(x1[i] - x2[i]))
+        if f in cyclicFeatures:
+            distances.append(cyclic(x1[i], x2[i], 1))
+
+    return np.mean(distances)
 

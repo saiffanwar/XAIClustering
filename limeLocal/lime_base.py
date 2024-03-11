@@ -12,7 +12,7 @@ class LimeBase(object):
     """Class for learning a locally linear sparse model from perturbed data"""
     def __init__(self,
                  kernel_fn,
-                 verbose=True,
+                 verbose=False,
                  random_state=None):
         """Init function
 
@@ -191,9 +191,9 @@ class LimeBase(object):
 #        CR = cyclicRegression.CyclicRegression()
 #        neighborhood_data = CR.rotateCyclicData(neighborhood_data, neighborhood_labels, weights, num_features)
         # if model_regressor is None:
-        #     model_regressor = Ridge(alpha=1, fit_intercept=True,
-        #                             random_state=self.random_state)
-        model_regressor = LinearRegression()
+        model_regressor = Ridge(alpha=1, fit_intercept=True,
+                                 random_state=self.random_state)
+#        model_regressor = LinearRegression()
         easy_model = model_regressor
         # print(np.shape(neighborhood_data[:, used_features]),
         #                len(labels_column), type(labels_column))
