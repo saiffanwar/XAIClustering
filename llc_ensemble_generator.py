@@ -118,7 +118,7 @@ class LLCGenerator():
 
         return clustered_data, medoids, linear_params, clustering_cost
 
-    def multi_layer_clustering(self, search_num):
+    def multi_layer_clustering(self,):
         x_test = self.x_test
         y_pred = self.y_pred
         features = self.features
@@ -148,7 +148,6 @@ class LLCGenerator():
             self.feature_ensembles[features[i]] = []
 #        for i in range():
             tic = time.time()
-            print(f'{search_num}: {i} out of {len(features)}')
 #            print(f'--------{features[i]} ({i} out of {len(features)})---------')
             all_feature_clusters = []
             all_feature_linear_params = []
@@ -201,6 +200,7 @@ class LLCGenerator():
 
         fig = make_subplots(rows=num_rows, cols=num_cols, column_widths=[1/num_cols for i in range(num_cols)], row_heights =[1/num_rows for row in range(num_rows)], specs = [[{} for c in range(num_cols)] for i in range(num_rows)], subplot_titles=features_to_plot, horizontal_spacing=0.05, vertical_spacing=0.05)
 
+        print(self.x_test.shape, self.y_pred.shape)
 
         axes = [[row, col] for row in range(1,num_rows+1) for col in range(1,num_cols+1)]
 
@@ -260,6 +260,67 @@ class LLCGenerator():
 
         return fig
 
+    def matplot_all_clustering(self,instance=None, features_to_plot=None, instances_to_show=[]):
+
+        if features_to_plot == None:
+            features_to_plot = self.features
+        if len(features_to_plot) > 4:
+            num_cols=4
+        else:
+            num_cols=len(features_to_plot)
+        num_rows=int(np.ceil(len(features_to_plot)/num_cols))
+
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=(20, 10))
+
+        plt.subplots_adjust(left=0.1,
+                            bottom=0.1,
+                            right=0.9,
+                            top=0.9,
+                            wspace=0.4,
+                            hspace=0.4)
+        axes = fig.get_axes()
+
+#        if len(instances_to_show) != 0:
+#            matched_instance_colours = [px.colors.qualitative.Alphabet[i % 10] for i in range(len(instances_to_show))]
+#            instances_to_show_matches = []
+
+        for feature in features_to_plot:
+            value = self.feature_ensembles[feature]
+            feature_index = self.features.index(feature)
+            i = features_to_plot.index(feature)
+            clustered_data, linear_params = value
+            showlegend=False
+            instanceFound = True
+            instance_clusters = []
+            all_feature_points = []
+            for cluster, params in zip(clustered_data, linear_params):
+                colour = np.random.rand(3)
+                axes[i].scatter(cluster[0], cluster[1], s=1, alpha=0.2, c=colour)
+                axes[i].plot(cluster[0], [params[0]*x+params[1] for x in cluster[0]], c=colour)
+
+#                fig.add_trace(go.Scatter(x=cluster[0],y=[params[0]*x+params[1] for x in cluster[0]],
+#                                         mode='lines', marker = dict(size=3, opacity=0.9, color=colour),
+#                                         showlegend=showlegend),
+#                              row=axes[i][0], col=axes[i][1])
+
+#                instances_to_show = None
+
+
+            min_y = np.min(self.y_pred)
+            max_y = np.max(self.y_pred)
+            axes[i].set_xlabel('Normalised Feature Value')
+            axes[i].set_ylabel('Predicted RUL')
+#            fig.update_xaxes(title='Normalised Feature Value', range=[min([min(self.x_test[:,feature_index])*1.1, -0.1]), max(self.x_test[:,i])*1.1], row=axes[i][0], col=axes[i][1])
+#            fig.update_yaxes(title='Predicted RUL',range=[min_y*-1.1, max_y*1.1], row=axes[i][0], col=axes[i][1])
+        if len(features_to_plot) == 1:
+            height = 750
+        elif len(features_to_plot) in [2,3]:
+            height = 500
+        else:
+            height=350*num_rows
+#        fig.update_layout(
+#                          height=height)
+        fig.savefig(f'Figures/{self.dataset}/Clustering/{self.dataset}_clustering_{self.sparsity_threshold}_{self.coverage_threshold}_{self.starting_k}_{self.neighbourhood_threshold}.pdf', bbox_inches='tight')
 
     def plot_data(self, plotting_data=None, features_to_plot=None, instances_to_show=None):
         if features_to_plot == None:
@@ -273,7 +334,6 @@ class LLCGenerator():
         fig = make_subplots(rows=num_rows, cols=num_cols, column_widths=[1/num_cols for i in range(num_cols)], row_heights =[1/num_rows for row in range(num_rows)], specs = [[{} for c in range(num_cols)] for i in range(num_rows)], subplot_titles=features_to_plot, horizontal_spacing=0.1, vertical_spacing=0.05)
 
         axes = [[row, col] for row in range(1,num_rows+1) for col in range(1,num_cols+1)]
-
 
         for feature in features_to_plot:
             value = self.feature_ensembles[feature]

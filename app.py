@@ -1,18 +1,19 @@
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output, callback, callback_context
 #from run_linear_clustering import LLCExplanation
-from run_llc_explanation import LLCExplanation
-from generate_ensembles import LLCGenerator
-from rul_phm08 import data_preprocessing, train, evaluate, chilli_explain
+from llc_explainer import LLCExplanation
+from llc_ensemble_generator import LLCGenerator
+from run_llc import MIDAS, RUL, chilli_explain
+
 import midas_model_data as midas
-from results_midas import MIDAS
 import pickle as pck
 import numpy as np
 
 
 dataset = 'MIDAS'
 if dataset == 'PHM08':
-    x_train, x_test, y_train, y_test, features = data_preprocessing()
+    phm08_runner = RUL()
+    x_train, x_test, y_train, y_test, features = phm08_runner.data_preprocessing()
     discrete_features = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
     with open(f'saved/models/{dataset}_model.pck', 'rb') as file:
         model = pck.load(file)
@@ -41,14 +42,14 @@ elif dataset == 'MIDAS':
     if sampling:
         y_pred = y_test_pred[random_samples]
         y_pred = y_pred[random_samples]
-    y_pred = y_train_pred
-    x_test = x_train
-    y_test = y_train
+    y_pred = y_test_pred
+#    x_test = x_train
+#    y_test = y_train
 
 chilli_prediction = None
 
 sparsity_threshold = 0.05
-coverage_threshold = 0.05
+coverage_threshold = 0.1
 starting_k = 10
 neighbourhood_threshold = 0.05
 

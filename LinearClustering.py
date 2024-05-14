@@ -47,7 +47,7 @@ class LinearClustering():
 
         self.x = x
         self.y = y
-        self.D = D
+        self.D = np.array(D)
         self.xDs = xDs
         self.feature_name = feature
         self.clustering_cost = None
@@ -663,8 +663,8 @@ class LinearClustering():
             for cluster in range(len(clustered_indices)):
                 for i, point_index in enumerate(clustered_indices[cluster]):
 #                        print(cluster, point_index)
-                    datapoints[cluster][0].append(self.x[point_index])
-                    datapoints[cluster][1].append(self.y[point_index])
+                    datapoints[cluster][0].append(float(self.x[point_index]))
+                    datapoints[cluster][1].append(float(self.y[point_index]))
             return datapoints
 
     def calculate_clustering_cost(self, clustered_data):
@@ -684,7 +684,6 @@ class LinearClustering():
             cluster_y = cluster[1]
             w,b = self.LR(cluster_x, cluster_y)
             cluster_pred = [w*x+b for x in cluster_x]
-            print(cluster_x, cluster_y, cluster_pred)
             cluster_error = mean_squared_error(cluster_y, cluster_pred, squared=False)
             [ys.append(y) for y in cluster_y]
             [preds.append(pred) for pred in cluster_pred]

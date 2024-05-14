@@ -161,7 +161,7 @@ class CHILLI():
         fig.savefig(f'Figures/CHILLI/{instance}_explanation_{suffix}.pdf', bbox_inches='tight')
 
 
-    def interactive_perturbation_plot(self, instance, exp, kernel_width, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature, neighbours=None):
+    def interactive_perturbation_plot(self, instance, exp, kernel_width, perturbations, model_perturbation_predictions, exp_perturbation_predictions, targetFeature, neighbours=None, method=None):
 
         exp_list = exp.as_list()
 
@@ -173,6 +173,7 @@ class CHILLI():
         perturbations_x, perturbations_model_y, perturbations_exp_y = np.array(perturbations[1:]), np.array(model_perturbation_predictions[1:]), np.array(exp_perturbation_predictions[1:])
         perturbations_model_y = [int(i) for i in perturbations_model_y]
         explanation_error = mean_squared_error(perturbations_model_y, perturbations_exp_y)
+        print(instance_model_y, instance_exp_y, explanation_error)
 
 
         perturbation_weights = exp.weights[1:]
@@ -236,4 +237,9 @@ class CHILLI():
             suffix = '_LIME'
         else:
             suffix = ''
+        if method == 'SLIME':
+            suffix = 'SLIME'
+
+        print(suffix)
+
         fig.write_html(f'Figures/{self.dataset}/Explanations/instance_{instance}{suffix}_kw={kernel_width}_explanation.html', auto_open=False)

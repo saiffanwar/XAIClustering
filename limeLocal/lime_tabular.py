@@ -511,10 +511,7 @@ class LimeTabularExplainer(object):
             # weights = [self.kernel_fn(d) for d in weights]
         # else:
         if newMethod == True:
-            if self.automated_locality==False:
-                weights = [self.kernel_fn(d) for d in distances]
-            else:
-                weights = [1 for d in distances]
+            weights = [self.kernel_fn(d) for d in distances]
         else:
             weights = [self.kernel_fn(d) for d in distances]
         self.weights = weights

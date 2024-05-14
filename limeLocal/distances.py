@@ -22,6 +22,7 @@ def cyclic(x1, x2, max_val):
 def binary(instance, perturbation):
     return(int(instance != perturbation))
 
+
 # Function to calculate the distance between 2 values for a single feature
 def calcSingleDistance(instanceValue, perturbValue, feature, maxVal, possVal):
     # These features are calculated as a euclidean distance normalised by the maximum possible value.
@@ -49,7 +50,12 @@ def calcAllDistances(instance, perturbations, features):
         # These features are calculated as a euclidean distance normalised by the maximum possible value.
         if any(f in feature for f in euclideanFeatures):
             maxVal = maxVals[f]
-            euclidean = lambda num2 : abs(instance[f]-num2)/maxVal
+            def euclidean(num2):
+                dist =  abs(instance[f]-num2)/maxVal
+                if math.isnan(dist):
+                    return 0
+                else:
+                    return dist
             distances[feature] = list(map(euclidean, [i[f] for i in perturbations]))
         # # These features are binary features.
         # elif feature in ['Bank Holiday', 'Weekend', 'Monday', 'Morning', 'Afternoon', 'Evening', 'Night']:

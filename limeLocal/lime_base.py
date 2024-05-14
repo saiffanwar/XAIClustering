@@ -7,6 +7,7 @@ import scipy as sp
 from sklearn.linear_model import Ridge, lars_path, LinearRegression
 from sklearn.utils import check_random_state
 from . import cyclicRegression
+import math
 
 class LimeBase(object):
     """Class for learning a locally linear sparse model from perturbed data"""
@@ -197,6 +198,14 @@ class LimeBase(object):
         easy_model = model_regressor
         # print(np.shape(neighborhood_data[:, used_features]),
         #                len(labels_column), type(labels_column))
+#        print(weights)
+#        new_weights = []
+#        for w in weights:
+#            if math.isnan(w):
+#                new_weights.append(0)
+#            else:
+#                new_weights.append(w)
+#        weights = np.array(new_weights)
         easy_model.fit(list(neighborhood_data),
                        labels_column, sample_weight=weights)
         prediction_score = easy_model.score(

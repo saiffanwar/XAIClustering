@@ -116,10 +116,10 @@ def combinedFeatureDistances(distances):
 def pointwiseDistance(x1, x2, features):
     distances = []
     for i, f in enumerate(features):
-        if f in euclideanFeatures:
-            distances.append(abs(x1[i] - x2[i]))
-        if f in cyclicFeatures:
-            distances.append(cyclic(x1[i], x2[i], 1))
-
+        if f not in ['heathrow cld_ttl_amt_id']:
+            if f in euclideanFeatures:
+                distances.append(abs(x1[i] - x2[i]))
+            if f in cyclicFeatures:
+                distances.append(cyclic(x1[i], x2[i], 1))
     return np.mean(distances)
 

@@ -47,6 +47,7 @@ class LLCExplanation():
 
     def generate_cluster_ranges(self, ):
         cluster_ranges = {f: [] for f in self.features}
+        instance_cluster_models = {f: [] for f in self.features}
         feature_ensembles = self.feature_ensembles
         for f in self.features:
             ensemble_data = feature_ensembles[f]
@@ -54,11 +55,12 @@ class LLCExplanation():
             all_xs = []
             for x in [cluster[0] for cluster in clustered_data]:
                 all_xs.extend(x)
-            for cluster in clustered_data:
+            for cluster, linear_model in zip(clustered_data, linear_models):
                 cluster_xs = cluster[0]
                 cluster_range = [min(cluster_xs), max(cluster_xs)]
                 cluster_ranges[f].append(cluster_range)
-        return cluster_ranges
+                instance_cluster_models[f] = linear_model
+        return cluster_ranges, instance_cluster_models
 
     def find_ranges(self, x, ranges):
         for i, (min_val, max_val) in enumerate(ranges):
@@ -84,7 +86,7 @@ class LLCExplanation():
         return cluster_assignments
 
 
-    def find_cluster_matches(self, data_instance, cluster_ranges, instance_assignments, match_tolerance=1):
+    def find_cluster_matches(self, data_instance, cluster_ranges, instance_assignments, match_tolerance=0):
         match_threshold = len(self.features) - match_tolerance
         print('\n')
         cluster_matches = []
@@ -111,11 +113,9 @@ class LLCExplanation():
 
     def generate_explanation(self, data_instance, instance_index, instance_prediction=None, ground_truth=None):
 
-        instance_cluster_models = {}
         exp_prediction = 0
-        instance_cluster_ranges = {}
 
-        cluster_ranges = self.generate_cluster_ranges()
+        cluster_ranges, instance_cluster_models = self.generate_cluster_ranges()
         instance_cluster_assignments = self.generate_cluster_assignments(cluster_ranges, data_instance)
 
         cluster_matches, local_x, local_y_pred, matched_instances = self.find_cluster_matches(data_instance, cluster_ranges, instance_cluster_assignments)
@@ -168,53 +168,45 @@ class LLCExplanation():
         return deviations
 
     def new_evaluation(self, instance_index, exp_model, primary_instance, importance_threshold=5):
-        print(exp_model.coef_)
-        important_features = [f for f in self.features if abs(exp_model.coef_[self.features.index(f)]) > importance_threshold]
+#        important_features = [f for f in self.features if abs(exp_model.coef_[self.features.index(f)]) > importance_threshold]
+        important_features = self.features
         only_important_x = self.x_test[:,[self.features.index(f) for f in important_features]]
 
-#        for i in range(len(only_important_x)):
-#            only_important_x[i] = np.append(only_important_x[i], self.y_pred[i])
-#        only_important_x = np.append(only_important_x, self.y_pred.reshape(-1,1), axis=1)
+
+        # Weighted euclidean distance
+        def weighted_euclidean_distance(data):
+            x, y , weights = data
+            squared_diff = (x - y) ** 2
+            weighted_squared_diff = squared_diff * weights
+            distance = np.sqrt(np.sum(weighted_squared_diff))
+            return distance
+        weights = [abs(c) for c in exp_model.coef_]
+        distances = [weighted_euclidean_distance((primary_instance, x, weights)) for x in only_important_x]
+#        print(distances)
+        closest_instances = list(np.argsort(distances))
 
 
-#        silhouette_scores = []
-#        max_clusters = 10
+        def absolute_difference(data):
+            x, y = data
+            sum_of_diffs = 0
+            for i in range(len(x)):
+                sum_of_diffs += abs(x[i] - y[i])
+
+            return sum_of_diffs
+        distances = [absolute_difference((primary_instance, x)) for x in self.x_test]
+        closest_instances = list(np.argsort(distances))
+
+
+
+        return closest_instances
+#        distances =
+
+##
+#        instance_cluster = labels[instance_index]
+##        instance_cluster_x = only_important_x[labels == instance_cluster]
+#        instance_cluster_x = np.argwhere(labels == instance_cluster).flatten()
 #
-#        for k in range(2, max_clusters + 1):
-#            kmeans = KMeans(n_clusters=k)
-#            kmeans.fit(only_important_x)
-#            labels = kmeans.labels_
-#            silhouette_scores.append(silhouette_score(only_important_x, labels))
-#
-#        optimal_clusters = np.argmax(silhouette_scores) + 2  # Add 2 to account for starting from 2 clusters
-        kmeans = KMeans(n_clusters=50)
-        kmeans.fit(only_important_x)
-        centroids = kmeans.cluster_centers_
-        labels = kmeans.labels_
-
-        if len(important_features) > 2:
-
-            for pairing in list(combinations(important_features,2)):
-                f1 = pairing[0]
-                f2 = pairing[1]
-
-                x_f1 = only_important_x[:,important_features.index(f1)]
-                x_f2 = only_important_x[:,important_features.index(f2)]
-
-                fig = plt.figure()
-                ax = fig.add_subplot(111, projection='3d')
-
-                ax.scatter(only_important_x[:,important_features.index(f1)], only_important_x[:,important_features.index(f2)], self.y_pred, c=labels, marker='o', s=5)
-                ax.set_xlabel(f1)
-                ax.set_ylabel(f2)
-                ax.set_zlabel('Prediction')
-#                plt.show()
-
-        instance_cluster = labels[instance_index]
-#        instance_cluster_x = only_important_x[labels == instance_cluster]
-        instance_cluster_x = np.argwhere(labels == instance_cluster).flatten()
-
-        return instance_cluster_x
+#        return instance_cluster_x
 
 
     def plot_explanation(self, plotting_data=None, features_to_plot=None):
@@ -224,7 +216,7 @@ class LLCExplanation():
             explained_feature_indices = [f for f in range(len(self.features)) if self.features[f] in features_to_plot]
             explained_features = [self.features[e] for e in explained_feature_indices]
             feature_contributions = instance_explanation_model.coef_[explained_feature_indices]
-            local_feature_significance = [instance_cluster_models[e][0] for e in explained_feature_indices]
+            local_feature_significance = [instance_cluster_models[f][0] for f in explained_features]
 
             colours = ['green' if x>= 0 else 'red' for x in feature_contributions]
             fig.add_trace(go.Bar(x=feature_contributions, y=explained_features, marker_color=colours, orientation='h', showlegend=False), row=1, col=1)

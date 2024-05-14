@@ -127,6 +127,7 @@ class LocalLinearRegression():
         return w1, w2, w
 
 
+
     def compute_distance_matrix(self, w, distance_weights= {'x': 1, 'w': 1, 'neighbourhood': 1}, instance=None):
         ''' Computes a distance matrix between all points for a distance function which includes the raw distance values,
         the parameters and error of the Local Linear Regression models for the respective points.
@@ -138,7 +139,11 @@ class LocalLinearRegression():
 #        print('Computing Distance Matrix...')
         if instance == None:
             D = np.zeros((self.N,self.N))
-            [(wDs.append(euclidean(w[i], w[j])), neighbourhoodDs.append(abs(self.neighbourhoods[i]-self.neighbourhoods[j]))) for i in range(self.N) for j in range(self.N)]
+            D = []
+            indexes = [[i, j] for i in tqdm(range(self.N)) for j in range(self.N)]
+            wDs = list(map(lambda x: euclidean(w[x[0]], w[x[1]]), indexes))
+            neighbourhoodDs = list(map(lambda x: abs(self.neighbourhoods[x[0]]-self.neighbourhoods[x[1]]), indexes))
+#            [(wDs.append(euclidean(w[i], w[j])), neighbourhoodDs.append(abs(self.neighbourhoods[i]-self.neighbourhoods[j]))) for i in range(self.N) for j in range(self.N)]
             normalise = lambda maxX, minX, x: (x-minX)/(maxX-minX)
 
             maxWds, minWds = np.max(wDs), np.min(wDs)
@@ -147,10 +152,16 @@ class LocalLinearRegression():
             maxNeighbourhood, minNeighbourhood = np.max(self.neighbourhoods), np.min(self.neighbourhoods)
             neighbourhood_norm = np.array(list(map(lambda x: normalise(maxNeighbourhood, minNeighbourhood, x), neighbourhoodDs))).reshape(self.N, self.N)
 
+            def distance_calc(indices):
+                i, j = indices
+                distance = distance_weights['x']*self.xDs_norm[i,j] + distance_weights['w']*wDs_norm[i,j] +  distance_weights['neighbourhood']*neighbourhood_norm[i,j]
+                return distance
+
             for i in tqdm(range(self.N)):
-                for j in range(self.N):
-                    distance = distance_weights['x']*self.xDs_norm[i,j] + distance_weights['w']*wDs_norm[i,j] +  distance_weights['neighbourhood']*neighbourhood_norm[i,j]
-                    D[i,j] = distance
+                D.append(list(map(distance_calc, [(i, j) for j in range(self.N)])))
+#                for j in range(self.N):
+#                    distance = distance_weights['x']*self.xDs_norm[i,j] + distance_weights['w']*wDs_norm[i,j] +  distance_weights['neighbourhood']*neighbourhood_norm[i,j]
+#                    D[i,j] = distance
 
 #        with open('saved/distance_matrix.pck', 'wb') as file:
 #            pck.dump([D, self.xDs_norm], file)
